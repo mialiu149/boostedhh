@@ -20,6 +20,31 @@ P4 = {
 
 PAD_VAL = -99999
 
+GEN_FLAGS = ["fromHardProcess", "isLastCopy"]
+
+
+class PDGID:
+    d = 1
+    u = 2
+    s = 3
+    c = 4
+    b = 5
+    t = 6
+    e = 11
+    ve = 12
+    mu = 13
+    vmu = 14
+    tau = 15
+    vtau = 16
+    gluon = 21
+    gamma = 22
+    Z = 23
+    W = 24
+    H = 25
+    bhadrons = (511, 521, 523)
+    pions = (111, 211)
+
+
 jecs = {
     "JES": "JES",
     "JER": "JER",
@@ -92,6 +117,19 @@ jmsr_vars = [
     "H2Mass",
     "H1PNetMass",
     "H2PNetMass",
+]
+
+
+# https://twiki.cern.ch/twiki/bin/viewauth/CMS/MissingETOptionalFiltersRun2#Run_3_recommendations
+met_filters = [
+    "goodVertices",
+    "globalSuperTightHalo2016Filter",
+    "EcalDeadCellTriggerPrimitiveFilter",
+    "BadPFMuonFilter",
+    "BadPFMuonDzFilter",
+    "eeBadScFilter",
+    "hfNoisyHitsFilter",
+    "eeBadScFilter",
 ]
 
 
