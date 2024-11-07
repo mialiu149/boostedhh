@@ -1,4 +1,4 @@
-# HHboostedhh
+# Boosted HH utilities
 
 
 [![Actions Status][actions-badge]][actions-link]
@@ -23,16 +23,14 @@
 
 <!-- prettier-ignore-end -->
 
-Search for two boosted (high transverse momentum) Higgs bosons (H) decaying to two beauty quarks (b) and two tau leptons.
+Common code and utilities for boosted HH analyses.
 
 
-- [HHboostedhh](#hhboostedhh)
+- [Boosted HH utilities](#boosted-hh-utilities)
   - [Setting up package](#setting-up-package)
     - [Creating a virtual environment](#creating-a-virtual-environment)
     - [Installing package](#installing-package)
     - [Troubleshooting](#troubleshooting)
-  - [Running coffea processors](#running-coffea-processors)
-    - [Setup](#setup)
 
 
 ## Setting up package
@@ -74,25 +72,4 @@ pre-commit install
 
 ```bash
 python3 -m pip install -e .
-```
-
-## Running coffea processors
-
-### Setup
-
-For submitting to condor, all you need is python >= 3.7.
-
-For running locally, follow the same virtual environment setup instructions
-above and install `coffea`
-
-```bash
-micromamba activate hh
-pip install coffea
-```
-
-Clone the repository:
-
-```
-git clone https://github.com/LPC-HH/boostedhh/
-pip install -e .
 ```

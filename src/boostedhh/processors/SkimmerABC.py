@@ -12,7 +12,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from coffea import processor
-
 from HH4b.hh_vars import LUMI
 
 from . import corrections
