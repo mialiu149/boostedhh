@@ -172,7 +172,6 @@ docker_stderror
 /*.err
 /*.out
 /*.log
-/condor
 src/boostedhh/corrections/data/jecs
 **/*test.ipynb
 
