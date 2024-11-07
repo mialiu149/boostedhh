@@ -10,8 +10,6 @@ from pathlib import Path
 import numpy as np
 from colorama import Fore, Style
 
-from .xsecs import xsecs
-
 
 def add_bool_arg(parser, name, help, default=False, no_name=None):
     """Add a boolean command line argument for argparse"""
@@ -38,11 +36,15 @@ def print_red(s):
     return print(f"{Fore.RED}{s}{Style.RESET_ALL}")
 
 
-def check_branch(git_branch: str, git_user: str = "LPC-HH", allow_diff_local_repo: bool = False):
+def check_branch(
+    analysis: str, git_branch: str, git_user: str = "LPC-HH", allow_diff_local_repo: bool = False
+):
     """Check that specified git branch exists in the repo, and local repo is up-to-date"""
+    repo = {"bbbb": "HH4b", "bbtautau": "HHbbtautau"}[analysis]
+
     assert not bool(
         os.system(
-            f'git ls-remote --exit-code --heads "https://github.com/{git_user}/HH4b" "{git_branch}"'
+            f'git ls-remote --exit-code --heads "https://github.com/{git_user}/{repo}" "{git_branch}"'
         )
     ), f"Branch {git_branch} does not exist"
 
@@ -125,34 +127,6 @@ def get_fileset(
             fileset = {**fileset, **sample_fileset}
 
     return fileset
-
-
-def get_processor(
-    processor: str,
-    save_systematics: bool | None = None,
-    region: str | None = None,
-    nano_version: str | None = None,
-    txbb: str | None = None,
-):
-    # define processor
-    if processor == "skimmer":
-        from HH4b.processors import bbbbSkimmer
-
-        return bbbbSkimmer(
-            xsecs=xsecs,
-            save_systematics=save_systematics,
-            region=region,
-            nano_version=nano_version,
-            txbb=txbb,
-        )
-
-    if processor == "ttSkimmer":
-        from HH4b.processors import ttSkimmer
-
-        return ttSkimmer(
-            xsecs=xsecs,
-            nano_version=nano_version,
-        )
 
 
 def parse_common_args(parser):

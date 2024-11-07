@@ -172,7 +172,6 @@ docker_stderror
 /*.err
 /*.out
 /*.log
-/condor
 src/HH4b/postprocessing/**/*.png
 src/HH4b/postprocessing/**/*.pdf
 src/HH4b/boosted/**/*.png
