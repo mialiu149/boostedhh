@@ -15,6 +15,7 @@ import gzip
 import pathlib
 import pickle
 import random
+import sys
 
 import awkward as ak
 import correctionlib
@@ -224,7 +225,12 @@ def get_scale_weights(events):
 class JECs:
     def __init__(self, year):
         if year in ["2022", "2022EE", "2023", "2023BPix"]:
-            jec_compiled = package_path + "/corrections/jec_compiled.pkl.gz"
+            if sys.version_info[1] < 11:  # noqa: YTT203
+                jec_compiled = package_path + "/corrections/jec_compiled.pkl.gz"
+            else:
+                # need new version for python 3.11
+                jec_compiled = package_path + "/corrections/jec_compiled_py311.pkl.gz"
+
         elif year in ["2016", "2016APV", "2017", "2018"]:
             jec_compiled = package_path + "/corrections/jec_compiled_run2.pkl.gz"
         else:
@@ -233,6 +239,7 @@ class JECs:
         self.jet_factory = {}
         self.met_factory = None
 
+        print(jec_compiled)
         if jec_compiled is not None:
             with gzip.open(jec_compiled, "rb") as filehandler:
                 jmestuff = pickle.load(filehandler)

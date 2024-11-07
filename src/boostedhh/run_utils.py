@@ -3,28 +3,17 @@ from __future__ import annotations
 
 import json
 import os
+import pickle
 import subprocess
 import sys
 from pathlib import Path
 
 import numpy as np
+import uproot
+from coffea import nanoevents, processor
 from colorama import Fore, Style
 
-from .xsecs import xsecs
-
-
-def add_bool_arg(parser, name, help, default=False, no_name=None):
-    """Add a boolean command line argument for argparse"""
-    varname = "_".join(name.split("-"))  # change hyphens to underscores
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument("--" + name, dest=varname, action="store_true", help=help)
-    if no_name is None:
-        no_name = "no-" + name
-        no_help = "don't " + help
-    else:
-        no_help = help
-    group.add_argument("--" + no_name, dest=varname, action="store_false", help=no_help)
-    parser.set_defaults(**{varname: default})
+from . import utils
 
 
 def add_mixins(nanoevents):
@@ -76,9 +65,8 @@ def check_branch(git_branch: str, git_user: str = "LPC-HH", allow_diff_local_rep
 
 
 def get_fileset(
-    processor: str,  # noqa: ARG001
+    fileset_path: str,
     year: int,
-    version: str,
     samples: list,
     subsamples: list,
     starti: int = 0,
@@ -86,13 +74,17 @@ def get_fileset(
     get_num_files: bool = False,
     # coffea_casa: str = False,
 ):
-    with Path(f"data/nanoindex_{version}.json").open() as f:
+    with Path(fileset_path).open() as f:
         full_fileset_nano = json.load(f)
+
+    # check if fileset contains multiple years
+    if not fileset_path.endswith(f"{year}.json"):
+        full_fileset_nano = full_fileset_nano[year]
 
     fileset = {}
 
     for sample in samples:
-        sample_set = full_fileset_nano[year][sample]
+        sample_set = full_fileset_nano[sample]
 
         set_subsamples = list(sample_set.keys())
 
@@ -127,43 +119,29 @@ def get_fileset(
     return fileset
 
 
-def get_processor(
-    processor: str,
-    save_systematics: bool | None = None,
-    region: str | None = None,
-    nano_version: str | None = None,
-    txbb: str | None = None,
-):
-    # define processor
-    if processor == "skimmer":
-        from HH4b.processors import bbbbSkimmer
-
-        return bbbbSkimmer(
-            xsecs=xsecs,
-            save_systematics=save_systematics,
-            region=region,
-            nano_version=nano_version,
-            txbb=txbb,
-        )
-
-    if processor == "ttSkimmer":
-        from HH4b.processors import ttSkimmer
-
-        return ttSkimmer(
-            xsecs=xsecs,
-            nano_version=nano_version,
-        )
-
-
-def parse_common_args(parser):
+def parse_common_run_args(parser):
+    parser.add_argument("--starti", default=0, help="start index of files", type=int)
+    parser.add_argument("--endi", default=-1, help="end index of files", type=int)
     parser.add_argument(
-        "--processor",
-        required=True,
-        help="processor",
+        "--executor",
         type=str,
-        choices=["skimmer", "ttSkimmer"],
+        default="iterative",
+        choices=["futures", "iterative", "dask"],
+        help="type of processor executor",
     )
+    parser.add_argument(
+        "--files", default=[], help="set of files to run on instead of samples", nargs="*"
+    )
+    parser.add_argument(
+        "--files-name",
+        type=str,
+        default="files",
+        help="sample name of files being run on, if --files option used",
+    )
+    parser.add_argument("--yaml", default=None, help="yaml file", type=str)
 
+
+def parse_common_hh_args(parser):
     parser.add_argument(
         "--year",
         help="year",
@@ -171,6 +149,7 @@ def parse_common_args(parser):
         default="2022",
         choices=["2018", "2022", "2022EE", "2023", "2023BPix"],
     )
+
     parser.add_argument(
         "--txbb",
         type=str,
@@ -178,29 +157,14 @@ def parse_common_args(parser):
         choices=["pnet-legacy", "pnet-v12", "glopart-v2"],
         help="TXbb version to be used to order FatJets",
     )
-    parser.add_argument(
-        "--nano-version",
-        type=str,
-        required=True,
-        choices=[
-            "v9",
-            "v9_private",
-            "v9_hh_private",
-            "v10",
-            "v11",
-            "v11_private",
-            "v12",
-            "v12_private",
-            "v12v2_private",
-        ],
-        help="NanoAOD version",
-    )
+
     parser.add_argument(
         "--samples",
         default=[],
         help="which samples to run",  # , default will be all samples",
         nargs="*",
     )
+
     parser.add_argument(
         "--subsamples",
         default=[],
@@ -210,15 +174,9 @@ def parse_common_args(parser):
 
     parser.add_argument("--maxchunks", default=0, help="max chunks", type=int)
     parser.add_argument("--chunksize", default=10000, help="chunk size", type=int)
-    parser.add_argument(
-        "--region",
-        help="region",
-        default="signal",
-        choices=["pre-sel", "signal", "semiboosted", "semilep-tt", "had-tt"],
-        type=str,
-    )
-    add_bool_arg(parser, "save-systematics", default=False, help="save systematic variations")
-    add_bool_arg(parser, "save-root", default=False, help="save root ntuples too")
+
+    utils.add_bool_arg(parser, "save-systematics", default=False, help="save systematic variations")
+    utils.add_bool_arg(parser, "save-root", default=False, help="save root ntuples too")
 
 
 def flatten_dict(var_dict: dict):
@@ -235,3 +193,166 @@ def flatten_dict(var_dict: dict):
             new_dict[key] = np.squeeze(var)
 
     return new_dict
+
+
+def run_dask(p: processor, fileset: dict, args):
+    """Run processor on using dask via lpcjobqueue"""
+
+    from distributed import Client
+    from lpcjobqueue import LPCCondorCluster
+
+    cluster = LPCCondorCluster(
+        ship_env=True, shared_temp_directory="/tmp", transfer_input_files="src/HH4b", memory="4GB"
+    )
+    cluster.adapt(minimum=1, maximum=350)
+
+    local_dir = Path().resolve()
+    local_parquet_dir = local_dir / "outparquet_dask"
+    local_parquet_dir.mkdir(exist_ok=True)
+
+    with Client(cluster) as client:
+        from datetime import datetime
+
+        print(datetime.now())
+        print("Waiting for at least one worker...")
+        client.wait_for_workers(1)
+        print(datetime.now())
+
+        from dask.distributed import performance_report
+
+        with performance_report(filename="dask-report.html"):
+            for sample, files in fileset.items():
+                outfile = f"{local_parquet_dir}/{args.year}_dask_{sample}.parquet"
+                if Path(outfile).is_dir():
+                    print("File " + outfile + " already exists. Skipping.")
+                    continue
+
+                print("Begin running " + sample)
+                print(datetime.now())
+                uproot.open.defaults["xrootd_handler"] = (
+                    uproot.source.xrootd.MultithreadedXRootDSource
+                )
+
+                executor = processor.DaskExecutor(
+                    status=True, client=client, retries=2, treereduction=2
+                )
+                run = processor.Runner(
+                    executor=executor,
+                    savemetrics=True,
+                    schema=processor.NanoAODSchema,
+                    chunksize=10000,
+                    # chunksize=args.chunksize,
+                    skipbadfiles=1,
+                )
+                out, metrics = run({sample: files}, "Events", processor_instance=p)
+
+                import pandas as pd
+
+                pddf = pd.concat(
+                    [pd.DataFrame(v.value) for k, v in out["array"].items()],
+                    axis=1,
+                    keys=list(out["array"].keys()),
+                )
+
+                import pyarrow as pa
+                import pyarrow.parquet as pq
+
+                table = pa.Table.from_pandas(pddf)
+                pq.write_table(table, outfile)
+
+                with Path(f"{local_parquet_dir}/{args.year}_dask_{sample}.pkl").open("wb") as f:
+                    pickle.dump(out["pkl"], f)
+
+
+def run(
+    p: processor,
+    fileset: dict,
+    chunksize: int,
+    maxchunks: int,
+    skipbadfiles: bool,
+    save_parquet: bool,
+    save_root: bool,
+    filetag: str,  # should be starti-endi
+    executor: str = "iterative",
+):
+    """Run processor without fancy dask (outputs then need to be accumulated manually)"""
+    add_mixins(nanoevents)  # update nanoevents schema
+
+    # outputs are saved here as pickles
+    outdir = Path("./outfiles")
+    outdir.mkdir(exist_ok=True)
+
+    if save_parquet or save_root:
+        # these processors store intermediate files in the "./outparquet" local directory
+        local_dir = Path().resolve()
+        local_parquet_dir = local_dir / "outparquet"
+
+        if local_parquet_dir.is_dir():
+            os.system(f"rm -rf {local_parquet_dir}")
+
+        local_parquet_dir.mkdir()
+
+    uproot.open.defaults["xrootd_handler"] = uproot.source.xrootd.MultithreadedXRootDSource
+
+    if executor == "futures":
+        executor = processor.FuturesExecutor(status=True)
+    else:
+        executor = processor.IterativeExecutor(status=True)
+
+    run = processor.Runner(
+        executor=executor,
+        savemetrics=True,
+        schema=nanoevents.NanoAODSchema,
+        chunksize=chunksize,
+        maxchunks=None if maxchunks == 0 else maxchunks,
+        skipbadfiles=skipbadfiles,
+    )
+
+    # try file opening 3 times if it fails
+    for i in range(3):
+        try:
+            out, metrics = run(fileset, "Events", processor_instance=p)
+            break
+        except FileNotFoundError as e:
+            import time
+
+            print("Error!")
+            print(e)
+            if i < 2:
+                print("Retrying in 1 minute")
+                time.sleep(60)
+            else:
+                raise e
+
+    print(out)
+
+    with Path(f"{outdir}/{filetag}.pkl").open("wb") as f:
+        pickle.dump(out, f)
+
+    # need to combine all the files from these processors before transferring to EOS
+    # otherwise it will complain about too many small files
+    if save_parquet or save_root:
+        import pandas as pd
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        pddf = pd.read_parquet(local_parquet_dir)
+
+        if save_parquet:
+            # need to write with pyarrow as pd.to_parquet doesn't support different types in
+            # multi-index column names
+            table = pa.Table.from_pandas(pddf)
+            pq.write_table(table, f"{local_dir}/{filetag}.parquet")
+
+        if save_root:
+            import awkward as ak
+
+            with uproot.recreate(
+                f"{local_dir}/nano_skim_{filetag}.root", compression=uproot.LZ4(4)
+            ) as rfile:
+                rfile["Events"] = ak.Array(
+                    # take only top-level column names in multiindex df
+                    flatten_dict(
+                        {key: np.squeeze(pddf[key].values) for key in pddf.columns.levels[0]}
+                    )
+                )

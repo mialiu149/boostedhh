@@ -173,12 +173,7 @@ docker_stderror
 /*.out
 /*.log
 /condor
-src/HH4b/postprocessing/**/*.png
-src/HH4b/postprocessing/**/*.pdf
-src/HH4b/boosted/**/*.png
-src/HH4b/boosted/**/*.pdf
-src/HH4b/boosted/**/*roc_dict.pkl
-src/HH4b/boosted/**/*.pkl
+src/boostedhh/corrections/data/jecs
 **/*test.ipynb
 
 running_jobs.txt
@@ -188,5 +183,6 @@ running_jobs.txt
 .local/
 
 data/.sites_map.json
+
 
 *.C
