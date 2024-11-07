@@ -1,5 +1,6 @@
 """
 Skimmer Base Class - common functions for all skimmers.
+
 Author(s): Raghav Kansal
 """
 
@@ -12,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from coffea import processor
-from HH4b.hh_vars import LUMI
+from boostedhh.hh_vars import LUMI
 
 from . import corrections
 
