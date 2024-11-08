@@ -151,7 +151,7 @@ def init_args(args):
 
     if args.site not in args.save_sites:
         warnings.warn(
-            f"Your local site {args.site} is not in save sites {args.sites}!", stacklevel=1
+            f"Your local site {args.site} is not in save sites {args.save_sites}!", stacklevel=1
         )
 
     t2_prefixes = [t2_redirectors[site] for site in args.save_sites]

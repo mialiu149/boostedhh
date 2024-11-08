@@ -107,14 +107,6 @@ def parse_common_hh_args(parser):
     )
 
     parser.add_argument(
-        "--txbb",
-        type=str,
-        default="glopart-v2",
-        choices=["pnet-legacy", "pnet-v12", "glopart-v2"],
-        help="TXbb version to be used to order FatJets",
-    )
-
-    parser.add_argument(
         "--samples",
         default=[],
         help="which samples to run",  # , default will be all samples",
