@@ -12,8 +12,9 @@ from os import listdir
 from pathlib import Path
 
 import numpy as np
-from HH4b import run_utils
-from HH4b.run_utils import print_red
+
+from boostedhh import utils
+from boostedhh.submit_utils import print_red
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument(
@@ -27,8 +28,8 @@ parser.add_argument(
 parser.add_argument("--tag", default="", help="tag for jobs", type=str)
 parser.add_argument("--year", default="20122", help="year", type=str)
 parser.add_argument("--user", default="rkansal", help="user", type=str)
-run_utils.add_bool_arg(parser, "submit-missing", default=False, help="submit missing files")
-run_utils.add_bool_arg(
+utils.add_bool_arg(parser, "submit-missing", default=False, help="submit missing files")
+utils.add_bool_arg(
     parser,
     "check-running",
     default=False,

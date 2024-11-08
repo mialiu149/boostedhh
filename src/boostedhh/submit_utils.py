@@ -7,17 +7,27 @@ Author(s): Cristina Mantilla Suarez, Raghav Kansal
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 import warnings
 from math import ceil
 from pathlib import Path
 from string import Template
 
-from boostedhh import run_utils
+from colorama import Fore, Style
+
+from boostedhh import utils
 
 t2_redirectors = {
     "lpc": "root://cmseos.fnal.gov//",
     "ucsd": "root://redirector.t2.ucsd.edu:1095//",
 }
+
+REPO_DICT = {"bbbb": "HH4b", "bbtautau": "bbtautau"}
+
+
+def print_red(s):
+    return print(f"{Fore.RED}{s}{Style.RESET_ALL}")
 
 
 def write_template(templ_file: str, out_file: str, templ_args: dict):
@@ -36,7 +46,6 @@ def parse_submit_args(parser):
     )
     parser.add_argument("--script", default="src/run.py", help="script to run", type=str)
     parser.add_argument("--tag", default="Test", help="process tag", type=str)
-    parser.add_argument("--yaml", default=None, help="specify args from YAML", type=str)
     parser.add_argument(
         "--outdir", dest="outdir", default="outfiles", help="directory for output files", type=str
     )
@@ -61,19 +70,17 @@ def parse_submit_args(parser):
         nargs="+",
         choices=["lpc", "ucsd"],
     )
-    run_utils.add_bool_arg(
+    utils.add_bool_arg(
         parser,
         "test",
         default=False,
         help="test run or not - test run means only 2 jobs per sample will be created",
     )
     parser.add_argument("--files-per-job", default=20, help="# files per condor job", type=int)
-    run_utils.add_bool_arg(
-        parser, "submit", default=False, help="submit files as well as create them"
-    )
+    utils.add_bool_arg(parser, "submit", default=False, help="submit files as well as create them")
     parser.add_argument("--git-branch", required=True, help="git branch to use", type=str)
     parser.add_argument("--git-user", default="LPC-HH", help="which user's repo to use", type=str)
-    run_utils.add_bool_arg(
+    utils.add_bool_arg(
         parser,
         "allow-diff-local-repo",
         default=False,
@@ -82,9 +89,50 @@ def parse_submit_args(parser):
     )
 
 
+def check_branch(
+    analysis: str, git_branch: str, git_user: str = "LPC-HH", allow_diff_local_repo: bool = False
+):
+    """Check that specified git branch exists in the repo, and local repo is up-to-date"""
+    repo = REPO_DICT[analysis]
+
+    assert not bool(
+        os.system(
+            f'git ls-remote --exit-code --heads "https://github.com/{git_user}/{repo}" "{git_branch}"'
+        )
+    ), f"Branch {git_branch} does not exist"
+
+    print(f"Using branch {git_branch}")
+
+    # check if there are uncommitted changes
+    uncommited_files = int(subprocess.getoutput("git status -s | wc -l"))
+
+    if uncommited_files:
+        print_red("There are local changes that have not been committed!")
+        os.system("git status -s")
+        if allow_diff_local_repo:
+            print_red("Proceeding anyway...")
+        else:
+            print_red("Exiting! Use the --allow-diff-local-repo option to override this.")
+            sys.exit(1)
+
+    # check that the local repo's latest commit matches that on github
+    remote_hash = subprocess.getoutput(f"git show origin/{git_branch} | head -n 1").split(" ")[1]
+    local_hash = subprocess.getoutput("git rev-parse HEAD")
+
+    if remote_hash != local_hash:
+        print_red("Latest local and github commits do not match!")
+        print(f"Local commit hash: {local_hash}")
+        print(f"Remote commit hash: {remote_hash}")
+        if allow_diff_local_repo:
+            print_red("Proceeding anyway...")
+        else:
+            print_red("Exiting! Use the --allow-diff-local-repo option to override this.")
+            sys.exit(1)
+
+
 def init_args(args):
     # check that branch exists
-    run_utils.check_branch(args.git_branch, args.git_user, args.allow_diff_local_repo)
+    check_branch(args.analysis, args.git_branch, args.git_user, args.allow_diff_local_repo)
     username = os.environ["USER"]
 
     if args.site == "lpc":
@@ -159,6 +207,7 @@ def submit(
 
                 localsh = f"{local_dir}/{prefix}_{j}.sh"
                 sh_args = {
+                    "repo": REPO_DICT[args.analysis],
                     "branch": args.git_branch,
                     "gituser": args.git_user,
                     "script": args.script,

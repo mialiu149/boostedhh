@@ -4,14 +4,11 @@ from __future__ import annotations
 import json
 import os
 import pickle
-import subprocess
-import sys
 from pathlib import Path
 
 import numpy as np
 import uproot
 from coffea import nanoevents, processor
-from colorama import Fore, Style
 
 from . import utils
 
@@ -21,51 +18,6 @@ def add_mixins(nanoevents):
     nanoevents.PFNanoAODSchema.mixins["SubJet"] = "FatJet"
     nanoevents.PFNanoAODSchema.mixins["PFCands"] = "PFCand"
     nanoevents.PFNanoAODSchema.mixins["SV"] = "PFCand"
-
-
-def print_red(s):
-    return print(f"{Fore.RED}{s}{Style.RESET_ALL}")
-
-
-def check_branch(
-    analysis: str, git_branch: str, git_user: str = "LPC-HH", allow_diff_local_repo: bool = False
-):
-    """Check that specified git branch exists in the repo, and local repo is up-to-date"""
-    repo = {"bbbb": "HH4b", "bbtautau": "HHbbtautau"}[analysis]
-
-    assert not bool(
-        os.system(
-            f'git ls-remote --exit-code --heads "https://github.com/{git_user}/{repo}" "{git_branch}"'
-        )
-    ), f"Branch {git_branch} does not exist"
-
-    print(f"Using branch {git_branch}")
-
-    # check if there are uncommitted changes
-    uncommited_files = int(subprocess.getoutput("git status -s | wc -l"))
-
-    if uncommited_files:
-        print_red("There are local changes that have not been committed!")
-        os.system("git status -s")
-        if allow_diff_local_repo:
-            print_red("Proceeding anyway...")
-        else:
-            print_red("Exiting! Use the --allow-diff-local-repo option to override this.")
-            sys.exit(1)
-
-    # check that the local repo's latest commit matches that on github
-    remote_hash = subprocess.getoutput(f"git show origin/{git_branch} | head -n 1").split(" ")[1]
-    local_hash = subprocess.getoutput("git rev-parse HEAD")
-
-    if remote_hash != local_hash:
-        print_red("Latest local and github commits do not match!")
-        print(f"Local commit hash: {local_hash}")
-        print(f"Remote commit hash: {remote_hash}")
-        if allow_diff_local_repo:
-            print_red("Proceeding anyway...")
-        else:
-            print_red("Exiting! Use the --allow-diff-local-repo option to override this.")
-            sys.exit(1)
 
 
 def get_fileset(

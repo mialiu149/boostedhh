@@ -19,16 +19,16 @@ done
 (
     r=3
     # shallow clone of single branch (keep repo size as small as possible)
-    while ! git clone --single-branch --branch $branch --depth=1 https://github.com/$gituser/HH4b
+    while ! git clone --single-branch -r --branch $branch --depth=1 https://github.com/$gituser/$repo
     do
         ((--r)) || exit
         sleep 60
     done
 )
-cd HH4b || exit
+cd $repo || exit
 
 commithash=$$(git rev-parse HEAD)
-echo "https://github.com/$gituser/HH4b/commit/$${commithash}" > commithash.txt
+echo "https://github.com/$gituser/$repo/commit/$${commithash}" > commithash.txt
 
 #move output to t2s
 for t2_prefix in ${t2_prefixes}
@@ -37,6 +37,9 @@ do
 done
 
 pip install -e .
+cd boostedhh
+pip install -e .
+cd ..
 
 # run code
 # pip install --user onnxruntime
