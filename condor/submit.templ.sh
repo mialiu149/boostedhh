@@ -19,7 +19,7 @@ done
 (
     r=3
     # shallow clone of single branch (keep repo size as small as possible)
-    while ! git clone --single-branch -r --branch $branch --depth=1 https://github.com/$gituser/$repo
+    while ! git clone --single-branch --recursive --branch $branch --depth=1 https://github.com/$gituser/$repo
     do
         ((--r)) || exit
         sleep 60
