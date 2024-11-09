@@ -64,7 +64,7 @@ def parse_submit_args(parser):
     )
     parser.add_argument(
         "--save-sites",
-        default=["lpc"],
+        default=["lpc", "ucsd"],
         help="tier 2s in which we want to save the files",
         type=str,
         nargs="+",
@@ -138,9 +138,8 @@ def init_args(args):
     if args.site == "lpc":
         try:
             proxy = os.environ["X509_USER_PROXY"]
-        except:
-            print("No valid proxy. Exiting.")
-            exit(1)
+        except KeyError as e:
+            raise FileNotFoundError("No proxy found on LPC. Exiting.") from e
     elif args.site == "ucsd":
         if username == "rkansal":
             proxy = "/home/users/rkansal/x509up_u31735"
