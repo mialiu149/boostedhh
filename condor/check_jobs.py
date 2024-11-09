@@ -25,8 +25,12 @@ parser.add_argument(
     choices=["trigger_boosted", "skimmer", "matching"],
 )
 
+parser.add_argument(
+    "--analysis", required=True, choices=["bbbb", "bbtautau"], help="which analysis", type=str
+)
+
 parser.add_argument("--tag", default="", help="tag for jobs", type=str)
-parser.add_argument("--year", default="20122", help="year", type=str)
+parser.add_argument("--year", default="2022", help="year", type=str)
 parser.add_argument("--user", default="rkansal", help="user", type=str)
 utils.add_bool_arg(parser, "submit-missing", default=False, help="submit missing files")
 utils.add_bool_arg(
@@ -39,7 +43,9 @@ utils.add_bool_arg(
 args = parser.parse_args()
 
 
-eosdir = f"/eos/uscms/store/user/{args.user}/bbbb/{args.processor}/{args.tag}/{args.year}/"
+eosdir = (
+    f"/eos/uscms/store/user/{args.user}/{args.analysis}/{args.processor}/{args.tag}/{args.year}/"
+)
 
 samples = listdir(eosdir)
 jdls = [jdl for jdl in listdir(f"condor/{args.processor}/{args.tag}/") if jdl.endswith(".jdl")]
