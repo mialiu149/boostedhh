@@ -92,6 +92,7 @@ for sample in samples:
     print(f"Checking {sample}")
 
     if args.processor != "trigger":
+        # add all files if entire parquet directory is missing
         if not Path(f"{eosdir}/{sample}/parquet").exists():
             print_red(f"No parquet directory for {sample}!")
             if sample not in jdl_dict:
@@ -129,21 +130,23 @@ for sample in samples:
         print(f"Out pickles: {outs_pickles}")
 
     for i in range(jdl_dict[sample]):
-        if i not in outs_pickles:
+        if i not in outs_pickles or (args.processor != "trigger" and i not in outs_parquet):
             if f"{args.year}_{sample}_{i}" in running_jobs:
                 print(f"Job #{i} for sample {sample} is running.")
                 continue
 
-            print_red(f"Missing output pickle #{i} for sample {sample}")
+            if i not in outs_pickles:
+                print_red(f"Missing output pickle #{i} for sample {sample}")
+
+            if args.processor != "trigger" and i not in outs_parquet:
+                print_red(f"Missing output parquet #{i} for sample {sample}")
+
             jdl_file = f"condor/{args.processor}/{args.tag}/{args.year}_{sample}_{i}.jdl"
             err_file = f"condor/{args.processor}/{args.tag}/logs/{args.year}_{sample}_{i}.err"
             missing_files.append(jdl_file)
             err_files.append(err_file)
             if args.submit_missing:
                 os.system(f"condor_submit {jdl_file}")
-
-        if args.processor != "trigger" and i not in outs_parquet:
-            print_red(f"Missing output parquet #{i} for sample {sample}")
 
 
 print(f"{len(missing_files)} files to re-run:")
