@@ -26,7 +26,7 @@ LUMI = {
 }
 
 
-DATA_SAMPLES = ["JetMET", "Muon", "EGamma"]
+DATA_SAMPLES = ["JetMET", "Muon", "EGamma", "Tau"]
 
 # sample key -> list of samples or selectors
 common_samples_bg = {

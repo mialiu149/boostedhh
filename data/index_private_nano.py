@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import warnings
 from pathlib import Path
 
 from XRootD import client
@@ -40,13 +41,18 @@ def xrootd_index_private_nano(
     Files are organized as:
 
     MC:
-    ......redirector.......|...............base_dir....................|..user.|year|sample|....................................subsample.......................................|
-    root://cmseos.fnal.gov//store/user/lpcdihiggsboost/NanoAOD_v12_ParT/rkansal/2022/HHbbtt/GluGlutoHHto2B2Tau_kl-1p00_kt-1p00_c2-0p00_LHEweights_TuneCP5_13p6TeV_powheg-pythia8/
+    ......redirector.......|...............base_dir....................|..user.|year|sample|
+    root://cmseos.fnal.gov//store/user/lpcdihiggsboost/NanoAOD_v12_ParT/rkansal/2022/HHbbtt/
+    ....................................subsample.......................................|
+    GluGlutoHHto2B2Tau_kl-1p00_kt-1p00_c2-0p00_LHEweights_TuneCP5_13p6TeV_powheg-pythia8/
     .............................f1...........................|.....f2......|.f3.|......
-    GluGlutoHHto2B2Tau_kl-1p00_kt-1p00_c2-0p00_TuneCP5_13p6TeV/241028_235514/0000/*.root
+    GluGlutoHHto2B2Tau_kl-1p00_kt-1p00_c2-0p00_TuneCP5_13p6TeV/241028_235514/000*/*.root
 
     Data:
-    TODO
+    ......redirector.......|...............base_dir....................|..user.|year|sample|
+    root://cmseos.fnal.gov//store/user/lpcdihiggsboost/NanoAOD_v12_ParT/rkansal/2022/Tau/
+    .f1|..subsample.|.....f2......|.f3.|......
+    Tau/Tau_Run2022D/241114_222843/000*/*.root
     """
     fs = client.FileSystem(redirector)
     base_dir = Path(base_dir)
@@ -72,28 +78,45 @@ def xrootd_index_private_nano(
 
                 print(f"\t\t\t{sample}")
                 spath = ypath / sample
+
+                is_data = sample in hh_vars.DATA_SAMPLES
+
                 tsubsamples = _dirlist(fs, spath) if subsamples is None else subsamples
                 for subsample in tsubsamples:
-                    if subsample in files[year][sample]:
-                        # Change to warning?
-                        raise ValueError(f"Duplicate subsample found! {subsample}")
+                    if not is_data:
+                        if subsample in files[year][sample]:
+                            warnings.warn(f"Duplicate subsample found! {subsample}", stacklevel=2)
 
-                    print(f"\t\t\t\t{subsample}")
+                        print(f"\t\t\t\t{subsample}")
+
                     sspath = spath / subsample
                     for f1 in _dirlist(fs, sspath):
+                        # For Data files, f1 is the subsample name
+                        if is_data:
+                            if f1 in files[year][sample]:
+                                warnings.warn(f"Duplicate subsample found! {f1}", stacklevel=2)
+
+                            print(f"\t\t\t\t{f1}")
+
                         f1path = sspath / f1
                         for f2 in _dirlist(fs, f1path):
                             f2path = f1path / f2
+                            tfiles = []
                             for f3 in _dirlist(fs, f2path):
                                 f3path = f2path / f3
-                                tfiles = [
+                                tfiles += [
                                     f"{redirector}{f3path!s}/{f}"
                                     for f in _dirlist(fs, f3path)
                                     if f.endswith(".root")
                                 ]
 
-                    files[year][sample][subsample] = tfiles
-                    print(f"\t\t\t\t\t{len(tfiles)} files")
+                        if is_data:
+                            files[year][sample][f1] = tfiles
+                            print(f"\t\t\t\t\t{len(tfiles)} files")
+
+                    if not is_data:
+                        files[year][sample][subsample] = tfiles
+                        print(f"\t\t\t\t\t{len(tfiles)} files")
 
     return files
 
