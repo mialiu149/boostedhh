@@ -11,7 +11,7 @@ for t2_prefix in ${t2_prefixes}
 do
     for folder in pickles parquet root githashes
     do
-        xrdfs $${t2_prefix} mkdir -p "/${outdir}/$${folder}"
+        xrdfs $${t2_prefix} mkdir -p -mrwxr-xr-x "/${outdir}/$${folder}"
     done
 done
 
