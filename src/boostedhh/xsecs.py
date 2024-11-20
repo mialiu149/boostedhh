@@ -11,6 +11,7 @@ BR_ZNUNU = 0.27107
 BR_ZLL = 0.02982
 # https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR
 BR_HBB = 0.5824
+BR_HTauTau = 0.0627
 BR_HCC = 0.02891
 
 xsecs = {}
@@ -153,18 +154,14 @@ xsecs["HHHTo6B_c3_1_d4_0"] = 2.908e-05 * BR_HBB * BR_HBB * BR_HBB  # (from xsecd
 # ggHH xsec 13.6: = 75.7617-53.2855*κλ+11.6126*κλ2 in fb
 hh = {
     # kl scan
-    "GluGlutoHHto4B_kl-0p00_kt-1p00_c2-0p00_TuneCP5_13p6TeV": 75.76e-3
-    * BR_HBB
-    * BR_HBB,  # 0.0256 (0.06648 from xsecdb, 0.06648*BR_HBB*BR_HBB=0.0225)
-    "GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00_TuneCP5_13p6TeV": 34.13e-3
-    * BR_HBB
-    * BR_HBB,  # 0.01167 (0.02964 from xsecdb, 0.02964*BR_HBB*BR_HBB=0.01005)
-    "GluGlutoHHto4B_kl-5p00_kt-1p00_c2-0p00_TuneCP5_13p6TeV": 99.65e-3
-    * BR_HBB
-    * BR_HBB,  # 0.0338 (0.08664 from xsecdb, 0.08664*BR_HBB*BR_HBB=0.0293)
-    "GluGlutoHHto4B_kl-2p45_kt-1p00_c2-0p00_TuneCP5_13p6TeV": 14.916e-3
-    * BR_HBB
-    * BR_HBB,  # 0.0051 (0.01252 from xsecdb, 0.01252*BR_HBB*BR_HBB=0.0042)
+    # 0.0256 (0.06648 from xsecdb, 0.06648*BR_HBB*BR_HBB=0.0225)
+    "GluGlutoHHto4B_kl-0p00_kt-1p00_c2-0p00_TuneCP5_13p6TeV": 75.76e-3 * BR_HBB * BR_HBB,
+    # 0.01167 (0.02964 from xsecdb, 0.02964*BR_HBB*BR_HBB=0.01005)
+    "GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p00_TuneCP5_13p6TeV": 34.13e-3 * BR_HBB * BR_HBB,
+    # 0.0338 (0.08664 from xsecdb, 0.08664*BR_HBB*BR_HBB=0.0293)
+    "GluGlutoHHto4B_kl-5p00_kt-1p00_c2-0p00_TuneCP5_13p6TeV": 99.65e-3 * BR_HBB * BR_HBB,
+    # 0.0051 (0.01252 from xsecdb, 0.01252*BR_HBB*BR_HBB=0.0042)
+    "GluGlutoHHto4B_kl-2p45_kt-1p00_c2-0p00_TuneCP5_13p6TeV": 14.916e-3 * BR_HBB * BR_HBB,
     # from xsecdb
     "GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p10_TuneCP5_13p6TeV": 0.01493 * BR_HBB * BR_HBB,
     "GluGlutoHHto4B_kl-1p00_kt-1p00_c2-0p35_TuneCP5_13p6TeV": 0.01052 * BR_HBB * BR_HBB,
@@ -176,6 +173,11 @@ for key, value in hh.items():
     xsecs[f"{key}_TSG"] = value
     xsecs[f"{key}_Private"] = value
     xsecs[f"{key}_TSG_Pu60"] = value
+
+
+xsecs["GluGlutoHHto2B2Tau_kl-1p00_kt-1p00_c2-0p00_LHEweights_TuneCP5_13p6TeV_powheg-pythia8"] = (
+    34.13e-3 * (2 * BR_HBB * BR_HTauTau)
+)
 
 # VBF HH
 # From F. Monti: VBF HH SM: 1.873758517 fb

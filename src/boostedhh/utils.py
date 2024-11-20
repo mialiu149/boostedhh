@@ -10,6 +10,7 @@ import contextlib
 import logging
 import logging.config
 import pickle
+import re
 import time
 import warnings
 from copy import deepcopy
@@ -248,7 +249,7 @@ def _normalize_weights(
     # check weights are scaled
     if "weight_noxsec" in events and np.all(events["weight"] == events["weight_noxsec"]):
         # print(sample)
-        if "VBF" in sample:
+        if "VBF" in sample or "GluGlutoHHto2B2Tau" in sample:
             warnings.warn(
                 f"Temporarily scaling {sample} by its xsec and lumi - remember to remove after fixing in the processor!",
                 stacklevel=0,
@@ -300,6 +301,109 @@ def _reorder_txbb(events: pd.DataFrame, txbb):
     for key in np.unique(events.columns.get_level_values(0)):
         if key.startswith("bbFatJet"):
             events[key] = np.take_along_axis(events[key].to_numpy(), bbord, axis=1)
+
+
+@dataclass
+class Sample:
+    """Sample."""
+
+    isData: bool
+    path: Path = None
+    label: str = None
+    selector: str = None
+    year: str = None
+    load_columns: list = None
+    variations: list[str] = None
+    weight_shifts: list[str] = None
+
+    def __post_init__(self):
+        if self.selector is not None:
+            self.selector = re.compile(self.selector)
+
+
+def load_sample(
+    sample: Sample, filters: list = None, load_weight_noxsec: bool = True
+) -> dict[str, pd.DataFrame]:
+    """
+    Loads events with an optional filter.
+    Divides MC samples by the total pre-skimming, to take the acceptance into account.
+
+    Args:
+        data_dir (str): path to data directory.
+        samples (Dict[str, str]): dictionary of samples and selectors to load.
+        year (str): year.
+        filters (List): Optional filters when loading data.
+        columns (List): Optional columns to load.
+        variations (bool): Normalize variations as well (saves time to not do so). Defaults to True.
+        weight_shifts (Dict[str, Syst]): dictionary of weight shifts to consider.
+
+    Returns:
+        Dict[str, pd.DataFrame]: ``events_dict`` dictionary of events dataframe for each sample.
+
+    """
+    sample_path = sample.path / sample.year
+    full_samples_list = listdir(sample_path)  # get all directories in data_dir
+    load_samples = [str(s) for s in full_samples_list if sample.selector.match(s)]
+
+    logger.info(f"Loading {load_samples}")
+
+    load_columns = deepcopy(sample.load_columns)
+    if load_columns is not None and not sample.isData and load_weight_noxsec:
+        # important to check that samples have been normalized properly
+        load_columns += format_columns([("weight_noxsec", 1)])
+
+    events_list = []
+    for load_sample in load_samples:
+        load_dir = sample_path / load_sample
+        parquet_path, pickles_path = load_dir / "parquet", load_dir / "pickles"
+
+        # no parquet directory?
+        if not parquet_path.exists():
+            warnings.warn(f"No parquet directory for {load_sample}!", stacklevel=1)
+            continue
+
+        logger.debug(f"Loading {load_sample}")
+        try:
+            events = pd.read_parquet(parquet_path, filters=filters, columns=load_columns)
+        except Exception:
+            warnings.warn(
+                f"Can't read file with requested columns/filters for {load_sample}!", stacklevel=1
+            )
+            continue
+
+        # no events?
+        if not len(events):
+            warnings.warn(f"No events for {load_sample}!", stacklevel=1)
+            continue
+
+        # normalize by total events
+        pickles = get_pickles(pickles_path, sample.year, load_sample)
+        if "totals" in pickles:
+            totals = pickles["totals"]
+            _normalize_weights(
+                events,
+                sample.year,
+                totals,
+                load_sample,
+                isData=sample.isData,
+                variations=sample.variations,
+                weight_shifts=sample.weight_shifts,
+            )
+        else:
+            if sample.isData:
+                events["finalWeight"] = events["weight"]
+            else:
+                n_events = get_nevents(pickles_path, sample.year, load_sample)
+                events["weight_nonorm"] = events["weight"]
+                events["finalWeight"] = events["weight"] / n_events
+
+        logger.info(f"Loaded {load_sample: <50}: {len(events)} entries")
+        events_list.append(events)
+
+    if len(events_list):
+        return pd.concat(events_list)
+    else:
+        return None
 
 
 def load_samples(

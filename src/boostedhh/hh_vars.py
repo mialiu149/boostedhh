@@ -26,7 +26,7 @@ LUMI = {
 }
 
 
-DATA_SAMPLES = ["JetMET", "Muon", "EGamma", "Tau"]
+DATA_SAMPLES = ["JetHT", "JetMET", "Muon", "EGamma", "Tau"]
 
 # sample key -> list of samples or selectors
 common_samples_bg = {
@@ -190,6 +190,10 @@ samples_run3_sig = {
             "VBFHHto4B_CV-m2p12_C2V-3p87_C3-m5p96_TuneCP5_13p6TeV_madgraph-pythia8"
         ],
     },
+}
+
+bbtt_sigs = {
+    "bbtt": "GluGlutoHHto2B2Tau_kl-1p00_kt-1p00_c2-0p00_LHEweights_TuneCP5_13p6TeV_powheg-pythia8",
 }
 
 samples_run3 = {
