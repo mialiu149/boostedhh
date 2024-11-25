@@ -1237,6 +1237,8 @@ def multiROCCurveGrey(
 
     # plots points and lines on plot corresponding to classifier thresholds
     for roc_sigs in rocs.values():
+        if plot_thresholds is None:
+            break
         i_sigeff = 0
         i_th = 0
         for rockey, roc in roc_sigs.items():
@@ -1326,6 +1328,7 @@ def multiROCCurveGrey(
 
     if len(name):
         plt.savefig(plot_dir / f"{name}.png", bbox_inches="tight")
+        plt.savefig(plot_dir / f"{name}.pdf", bbox_inches="tight")
 
     if show:
         plt.show()
