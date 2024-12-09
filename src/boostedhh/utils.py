@@ -640,7 +640,7 @@ def make_vector(events: pd.DataFrame, name: str, mask=None, mstring="Mass"):
     """
     import vector
 
-    if get_feat(events, f"{name}Pt"):
+    if get_feat(events, f"{name}Pt") is None:
         raise KeyError(f"Could not find {name}Pt in events")
 
     if mask is None:
