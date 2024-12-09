@@ -640,6 +640,9 @@ def make_vector(events: pd.DataFrame, name: str, mask=None, mstring="Mass"):
     """
     import vector
 
+    if get_feat(events, f"{name}Pt"):
+        raise KeyError(f"Could not find {name}Pt in events")
+
     if mask is None:
         return vector.array(
             {
@@ -1090,3 +1093,20 @@ def multi_rebin_hist(h: Hist, axes_edges: dict[str, list[float]], flow: bool = T
         h = remove_hist_overflow(h)
 
     return h
+
+
+def concatenate_dicts(dicts_list: list[dict[str, np.ndarray]]):
+    """given a list of dicts of numpy arrays, concatenates the numpy arrays across the lists"""
+    if len(dicts_list) > 1:
+        return {
+            key: np.concatenate(
+                [
+                    dicts_list[i][key].reshape(dicts_list[i][key].shape[0], -1)
+                    for i in range(len(dicts_list))
+                ],
+                axis=1,
+            )
+            for key in dicts_list[0]
+        }
+
+    return dicts_list[0]
