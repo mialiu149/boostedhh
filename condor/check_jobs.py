@@ -19,18 +19,21 @@ from boostedhh.submit_utils import print_red
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument(
     "--processor",
-    default="trigger",
     help="which processor",
     type=str,
     choices=["trigger_boosted", "skimmer", "matching"],
+    required=True,
 )
 
 parser.add_argument(
     "--analysis", required=True, choices=["bbbb", "bbtautau"], help="which analysis", type=str
 )
 
+parser.add_argument(
+    "--site", default="lpc", choices=["lpc", "ucsd"], help="t2 site we are checking", type=str
+)
 parser.add_argument("--tag", default="", help="tag for jobs", type=str)
-parser.add_argument("--year", default="2022", help="year", type=str)
+parser.add_argument("--year", help="year", type=str, required=True)
 parser.add_argument("--user", default="rkansal", help="user", type=str)
 utils.add_bool_arg(parser, "submit-missing", default=False, help="submit missing files")
 utils.add_bool_arg(
@@ -43,11 +46,16 @@ utils.add_bool_arg(
 args = parser.parse_args()
 
 
-eosdir = (
-    f"/eos/uscms/store/user/{args.user}/{args.analysis}/{args.processor}/{args.tag}/{args.year}/"
+cmspath = {
+    "lpc": "/eos/uscms/",
+    "ucsd": "/ceph/cms/",
+}[args.site]
+
+xrddir = (
+    f"{cmspath}/store/user/{args.user}/{args.analysis}/{args.processor}/{args.tag}/{args.year}/"
 )
 
-samples = listdir(eosdir)
+samples = listdir(xrddir)
 jdls = [jdl for jdl in listdir(f"condor/{args.processor}/{args.tag}/") if jdl.endswith(".jdl")]
 
 jdl_dict = {}
@@ -93,7 +101,7 @@ for sample in samples:
 
     if args.processor != "trigger":
         # add all files if entire parquet directory is missing
-        if not Path(f"{eosdir}/{sample}/parquet").exists():
+        if not Path(f"{xrddir}/{sample}/parquet").exists():
             print_red(f"No parquet directory for {sample}!")
             if sample not in jdl_dict:
                 continue
@@ -114,16 +122,16 @@ for sample in samples:
             continue
 
         outs_parquet = [
-            int(out.split(".")[0].split("_")[-1]) for out in listdir(f"{eosdir}/{sample}/parquet")
+            int(out.split(".")[0].split("_")[-1]) for out in listdir(f"{xrddir}/{sample}/parquet")
         ]
         print(f"Out parquets: {outs_parquet}")
 
-    if not Path(f"{eosdir}/{sample}/pickles").exists():
+    if not Path(f"{xrddir}/{sample}/pickles").exists():
         print_red(f"No pickles directory for {sample}!")
         continue
 
     outs_pickles = [
-        int(out.split(".")[0].split("_")[-1]) for out in listdir(f"{eosdir}/{sample}/pickles")
+        int(out.split(".")[0].split("_")[-1]) for out in listdir(f"{xrddir}/{sample}/pickles")
     ]
 
     if args.processor == "trigger":
