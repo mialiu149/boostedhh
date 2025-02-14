@@ -145,6 +145,8 @@ def init_args(args):
             proxy = "/home/users/rkansal/x509up_u31735"
         elif username == "dprimosc":
             proxy = "/tmp/x509up_u150012"  # "/home/users/dprimosc/x509up_u150012"
+        elif username == "lumori":
+            proxy = "/tmp/x509up_u81981"
     else:
         raise ValueError(f"Invalid site {args.site}")
 
