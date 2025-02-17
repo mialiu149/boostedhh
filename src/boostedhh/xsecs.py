@@ -54,17 +54,23 @@ xsecs["QCDB_HT-1500to2000"] = 4729
 xsecs["QCDB_HT-2000"] = 0.8673
 
 # got using genXsecAnalyzer
-xsecs["QCD_HT-40to70"] = 311600000.0
-xsecs["QCD_HT-70to100"] = 58520000.0
-xsecs["QCD_HT-100to200"] = 25220000.0
-xsecs["QCD_HT-200to400"] = 1963000.0
-xsecs["QCD_HT-400to600"] = 94870.0
-xsecs["QCD_HT-600to800"] = 13420.0
-xsecs["QCD_HT-800to1000"] = 2992.0
-xsecs["QCD_HT-1000to1200"] = 879.1
-xsecs["QCD_HT-1200to1500"] = 384.5
-xsecs["QCD_HT-1500to2000"] = 125.5
-xsecs["QCD_HT-2000"] = 25.78
+qcdhtxsecs = {}
+
+qcdhtxsecs["QCD_HT-40to70"] = 311600000.0
+qcdhtxsecs["QCD_HT-70to100"] = 58520000.0
+qcdhtxsecs["QCD_HT-100to200"] = 25220000.0
+qcdhtxsecs["QCD_HT-200to400"] = 1963000.0
+qcdhtxsecs["QCD_HT-400to600"] = 94870.0
+qcdhtxsecs["QCD_HT-600to800"] = 13420.0
+qcdhtxsecs["QCD_HT-800to1000"] = 2992.0
+qcdhtxsecs["QCD_HT-1000to1200"] = 879.1
+qcdhtxsecs["QCD_HT-1200to1500"] = 384.5
+qcdhtxsecs["QCD_HT-1500to2000"] = 125.5
+qcdhtxsecs["QCD_HT-2000"] = 25.78
+
+for key, value in qcdhtxsecs.items():
+    xsecs[key] = value
+    xsecs[key.replace("_HT", "-4Jets_HT")] = value
 
 # xsdb
 xsecs["QCD_PT-120to170_MuEnrichedPt5"] = 22980.0
@@ -181,7 +187,6 @@ for key, value in hh.items():
         xsecs[f"{tkey}_TSG"] = tvalue
         xsecs[f"{tkey}_Private"] = tvalue
         xsecs[f"{tkey}_TSG_Pu60"] = tvalue
-
 
 
 ### TO UPDATE ###
