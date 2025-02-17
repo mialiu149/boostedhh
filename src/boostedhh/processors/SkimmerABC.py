@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from coffea import processor
+
 from boostedhh.hh_vars import LUMI
 
 from . import corrections
@@ -83,6 +84,9 @@ class SkimmerABC(processor.ProcessorABC):
         """
         if dataset in self.XSECS:
             xsec = self.XSECS[dataset]
+            weight_norm = xsec * LUMI[year]
+        elif dataset.split("_TuneCP5")[0] in self.XSECS:
+            xsec = self.XSECS[dataset.split("_TuneCP5")[0]]
             weight_norm = xsec * LUMI[year]
         else:
             logging.warning("Weight not normalized to cross section")

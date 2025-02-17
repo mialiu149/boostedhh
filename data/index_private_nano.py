@@ -32,6 +32,7 @@ def xrootd_index_private_nano(
     samples: list[str] = None,
     subsamples: list[str] = None,
     files: dict[str] = None,
+    overwrite_sample: bool = False,
 ) -> list:
     """Recursively search for privately produced NanoAOD files via XRootD.
 
@@ -75,6 +76,9 @@ def xrootd_index_private_nano(
             for sample in tsamples:
                 if sample not in files[year]:
                     files[year][sample] = {}
+                elif overwrite_sample:
+                    warnings.warn(f"Overwriting existing sample {sample}", stacklevel=2)
+                    files[year][sample] = {}
 
                 print(f"\t\t\t{sample}")
                 spath = ypath / sample
@@ -83,11 +87,14 @@ def xrootd_index_private_nano(
 
                 tsubsamples = _dirlist(fs, spath) if subsamples is None else subsamples
                 for subsample in tsubsamples:
+                    subsample_name = subsample.split("_TuneCP5")[0]
                     if not is_data:
-                        if subsample in files[year][sample]:
-                            warnings.warn(f"Duplicate subsample found! {subsample}", stacklevel=2)
+                        if subsample_name in files[year][sample]:
+                            warnings.warn(
+                                f"Duplicate subsample found! {subsample_name}", stacklevel=2
+                            )
 
-                        print(f"\t\t\t\t{subsample}")
+                        print(f"\t\t\t\t{subsample_name}")
 
                     sspath = spath / subsample
                     for f1 in _dirlist(fs, sspath):
@@ -115,7 +122,7 @@ def xrootd_index_private_nano(
                             print(f"\t\t\t\t\t{len(tfiles)} files")
 
                     if not is_data:
-                        files[year][sample][subsample] = tfiles
+                        files[year][sample][subsample_name] = tfiles
                         print(f"\t\t\t\t\t{len(tfiles)} files")
 
     return files
@@ -134,6 +141,10 @@ def main():
 
     utils.add_bool_arg(
         parser, "append", "Append to existing JSON file versus overwriting it", default=True
+    )
+
+    utils.add_bool_arg(
+        parser, "overwrite-sample", "Overwrite an existing sample list in the JSON", default=False
     )
 
     parser.add_argument(
@@ -204,6 +215,7 @@ def main():
         args.samples,
         args.subsamples,
         files,
+        args.overwrite_sample,
     )
 
     # save files per year
