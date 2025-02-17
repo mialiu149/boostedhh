@@ -183,6 +183,13 @@ for key, value in hh.items():
         xsecs[f"{tkey}_TSG_Pu60"] = tvalue
 
 
+
+### TO UPDATE ###
+
+xsecs["GluGlutoHHto2B2Tau_kl-1p00_kt-1p00_c2-0p00_TuneCP5_13p6TeV_powheg-pythia8"] = 34.13e-3 * (
+    2 * BR_HBB * BR_HTauTau
+)
+
 # VBF HH
 # From F. Monti: VBF HH SM: 1.873758517 fb
 #  scale uncertainty: +0.048%/-0.032%
