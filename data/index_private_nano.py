@@ -87,7 +87,7 @@ def xrootd_index_private_nano(
 
                 tsubsamples = _dirlist(fs, spath) if subsamples is None else subsamples
                 for subsample in tsubsamples:
-                    subsample_name = subsample.split("_TuneCP5")[0]
+                    subsample_name = subsample.split("_TuneCP5")[0].split("_LHEweights")[0]
                     if not is_data:
                         if subsample_name in files[year][sample]:
                             warnings.warn(
