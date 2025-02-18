@@ -9,7 +9,7 @@ mkdir outfiles
 
 for t2_prefix in ${t2_prefixes}
 do
-    for folder in pickles parquet root githashes
+    for folder in pickles parquet root jobchecks
     do
         xrdfs $${t2_prefix} mkdir -p -mrwxr-xr-x "/${outdir}/$${folder}"
     done
@@ -33,7 +33,7 @@ echo "https://github.com/$gituser/$repo/commit/$${commithash}" > commithash.txt
 #move output to t2s
 for t2_prefix in ${t2_prefixes}
 do
-    xrdcp -f commithash.txt $${t2_prefix}/${outdir}/githashes/commithash_${jobnum}.txt
+    xrdcp -f commithash.txt $${t2_prefix}/${outdir}/jobchecks/commithash_${jobnum}.txt
 done
 
 pip install -e .
@@ -48,11 +48,12 @@ python -u -W ignore $script --year $year --starti $starti --endi $endi --samples
 #move output to t2s
 for t2_prefix in ${t2_prefixes}
 do
+    xrdcp -f num_batches*.txt "$${t2_prefix}/${outdir}/jobchecks/"
     xrdcp -f outfiles/* "$${t2_prefix}/${outdir}/pickles/out_${jobnum}.pkl"
-    xrdcp -f *.parquet "$${t2_prefix}/${outdir}/parquet/out_${jobnum}.parquet"
-    xrdcp -f *.root "$${t2_prefix}/${outdir}/root/nano_skim_${jobnum}.root"
+    xrdcp -f *.parquet "$${t2_prefix}/${outdir}/parquet/"
+    xrdcp -f *.root "$${t2_prefix}/${outdir}/root/"
 done
 
 rm *.parquet
 rm *.root
-rm commithash.txt
+rm *.txt
