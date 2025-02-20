@@ -296,7 +296,6 @@ def run(
         # Get all parquet files
         path = Path(local_parquet_dir)
         parquet_files = list(path.glob("*.parquet"))
-        print(parquet_files)
         
         num_batches = int(np.ceil(len(parquet_files) / batch_size))
         Path(f"num_batches_{filetag}_{num_batches}.txt").touch()
