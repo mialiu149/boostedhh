@@ -222,6 +222,7 @@ def submit(
                     "chunksize": args.chunksize,
                     "t2_prefixes": " ".join(t2_prefixes),
                     "outdir": sample_dir,
+                    "filetag": j,
                     "jobnum": j,
                     "save_root": ("--save-root" if args.save_root else "--no-save-root"),
                     "nano_version": args.nano_version,

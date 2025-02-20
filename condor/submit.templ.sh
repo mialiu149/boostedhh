@@ -43,7 +43,7 @@ cd ..
 
 # run code
 # pip install --user onnxruntime
-python -u -W ignore $script --year $year --starti $starti --endi $endi --samples $sample --subsamples $subsample --processor $processor --maxchunks $maxchunks --chunksize $chunksize ${save_root} ${save_systematics} --nano-version ${nano_version} $processor_args
+python -u -W ignore $script --year $year --starti $starti --endi $endi --file-tag $filetag --samples $sample --subsamples $subsample --processor $processor --maxchunks $maxchunks --chunksize $chunksize ${save_root} ${save_systematics} --nano-version ${nano_version} $processor_args
 
 #move output to t2s
 for t2_prefix in ${t2_prefixes}

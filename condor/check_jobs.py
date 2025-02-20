@@ -21,7 +21,6 @@ parser.add_argument(
     "--processor",
     help="which processor",
     type=str,
-    choices=["trigger_boosted", "skimmer", "matching"],
     required=True,
 )
 

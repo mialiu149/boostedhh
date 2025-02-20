@@ -101,6 +101,7 @@ def parse_common_run_args(parser):
         help="# of outputs to combine into a single output if saving .parquet or .root files",
     )
     parser.add_argument("--yaml", default=None, help="yaml file", type=str)
+    parser.add_argument("--file-tag", default=None, help="optional output file tag", type=str)
 
 
 def parse_common_hh_args(parser):
@@ -232,7 +233,7 @@ def run(
 ):
     """
     Run processor without fancy dask (outputs then need to be accumulated manually)
-    
+
     batch_size (int): used to combine a ``batch_size`` number of outputs into one parquet / root
     """
     add_mixins(nanoevents)  # update nanoevents schema
@@ -287,19 +288,19 @@ def run(
 
     with Path(f"{outdir}/{filetag}.pkl").open("wb") as f:
         pickle.dump(out, f)
-    
+
     if save_parquet or save_root:
         import pandas as pd
         import pyarrow as pa
         import pyarrow.parquet as pq
-        
+
         # Get all parquet files
         path = Path(local_parquet_dir)
         parquet_files = list(path.glob("*.parquet"))
-        
+
         num_batches = int(np.ceil(len(parquet_files) / batch_size))
         Path(f"num_batches_{filetag}_{num_batches}.txt").touch()
-        
+
         # need to combine all the files from these processors before transferring to EOS
         # otherwise it will complain about too many small files
         for i in range(num_batches):
@@ -308,7 +309,7 @@ def run(
             print(batch)
             print([pd.read_parquet(f) for f in batch])
             pddf = pd.concat([pd.read_parquet(f) for f in batch])
-            
+
             if save_parquet:
                 # need to write with pyarrow as pd.to_parquet doesn't support different types in
                 # multi-index column names
