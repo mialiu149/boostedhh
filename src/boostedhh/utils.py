@@ -39,6 +39,8 @@ from .hh_vars import (
     years,
 )
 
+logger = logging.getLogger("boostedhh.utils")
+
 
 def add_bool_arg(parser, name, help, default=False, no_name=None):
     """Add a boolean command line argument for argparse"""
@@ -55,7 +57,10 @@ def add_bool_arg(parser, name, help, default=False, no_name=None):
     parser.set_defaults(**{varname: default})
 
 
-logger = logging.getLogger("boostedhh.utils")
+def list_intersection(list1, list2):
+    """Returns the intersection of two lists"""
+    return list(set(list1) & set(list2))
+
 
 MAIN_DIR = "./"
 CUT_MAX_VAL = 9999.0
@@ -101,6 +106,46 @@ class Syst:
     samples: list[str] = None
     years: list[str] = field(default_factory=lambda: years)
     label: str = None
+
+
+@dataclass
+class Sample:
+    """Sample."""
+
+    isData: bool = False
+    isSignal: bool = False
+    label: str = None
+    selector: str | dict[str] = None  # regex to select directories. can be dict of different years
+    load_columns: list = None
+    variations: list[str] = None
+    weight_shifts: list[str] = None
+
+    def __post_init__(self):
+        if self.selector is not None:
+            if isinstance(self.selector, str):
+                self.selector = re.compile(self.selector)
+            elif isinstance(self.selector, dict):
+                for year in self.selector:
+                    self.selector[year] = re.compile(self.selector[year])
+
+    def get_selector(self, year=None):
+        if isinstance(self.selector, dict):
+            return self.selector[year]
+        else:
+            return self.selector
+
+
+@dataclass
+class Channel:
+    """Channel."""
+
+    key: str  # key in dictionaries etc.
+    label: str  # label for plotting
+    data_samples: list[str]  # datasets for this channel
+    triggers: list[str] | dict[str, list[str]]  # list of triggers or dict of triggers per year
+    isLepton: bool  # lepton channel or fully hadronic
+    lepton_dataset: str = None  # lepton dataset (if applicable)
+    lepton_triggers: str = None  # lepton triggers (if applicable)
 
 
 @contextlib.contextmanager
@@ -303,26 +348,12 @@ def _reorder_txbb(events: pd.DataFrame, txbb):
             events[key] = np.take_along_axis(events[key].to_numpy(), bbord, axis=1)
 
 
-@dataclass
-class Sample:
-    """Sample."""
-
-    isData: bool
-    path: Path = None
-    label: str = None
-    selector: str = None
-    year: str = None
-    load_columns: list = None
-    variations: list[str] = None
-    weight_shifts: list[str] = None
-
-    def __post_init__(self):
-        if self.selector is not None:
-            self.selector = re.compile(self.selector)
-
-
 def load_sample(
-    sample: Sample, filters: list = None, load_weight_noxsec: bool = True
+    sample: Sample,
+    year: str,
+    paths: dict[str],
+    filters: list = None,
+    load_weight_noxsec: bool = True,
 ) -> dict[str, pd.DataFrame]:
     """
     Loads events with an optional filter.
@@ -341,9 +372,17 @@ def load_sample(
         Dict[str, pd.DataFrame]: ``events_dict`` dictionary of events dataframe for each sample.
 
     """
-    sample_path = sample.path / sample.year
+    if sample.isData:
+        sample_path = paths["data"]
+    elif sample.isSignal:
+        sample_path = paths["signal"]
+    else:
+        sample_path = paths["bg"]
+
+    sample_path = sample_path / year
+
     full_samples_list = listdir(sample_path)  # get all directories in data_dir
-    load_samples = [str(s) for s in full_samples_list if sample.selector.match(s)]
+    load_samples = [str(s) for s in full_samples_list if sample.get_selector(year).match(s)]
 
     logger.info(f"Loading {load_samples}")
 
@@ -377,12 +416,12 @@ def load_sample(
             continue
 
         # normalize by total events
-        pickles = get_pickles(pickles_path, sample.year, load_sample)
+        pickles = get_pickles(pickles_path, year, load_sample)
         if "totals" in pickles:
             totals = pickles["totals"]
             _normalize_weights(
                 events,
-                sample.year,
+                year,
                 totals,
                 load_sample,
                 isData=sample.isData,
@@ -393,7 +432,7 @@ def load_sample(
             if sample.isData:
                 events["finalWeight"] = events["weight"]
             else:
-                n_events = get_nevents(pickles_path, sample.year, load_sample)
+                n_events = get_nevents(pickles_path, year, load_sample)
                 events["weight_nonorm"] = events["weight"]
                 events["finalWeight"] = events["weight"] / n_events
 
