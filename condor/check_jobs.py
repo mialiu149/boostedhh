@@ -120,10 +120,27 @@ for sample in samples:
 
             continue
 
-        outs_parquet = [
-            int(out.split(".")[0].split("_")[-1]) for out in listdir(f"{xrddir}/{sample}/parquet")
-        ]
-        print(f"Out parquets: {outs_parquet}")
+        num_batches = [f for f in listdir(f"{xrddir}/{sample}/jobchecks") if "num_batches" in f]
+
+        expected_parquets = {}
+        for f in num_batches:
+            with Path(f"{xrddir}/{sample}/jobchecks/{f}").open() as file:
+                bnum = file.readlines()
+
+            fnum = int(f.split("_")[2])
+            expected_parquets[fnum] = int(bnum[0])
+
+        outs_parquet = {}
+        for out in listdir(f"{xrddir}/{sample}/parquet"):
+            fnum = int(out.split("_")[1])
+            if fnum not in outs_parquet:
+                outs_parquet[fnum] = []
+
+            bnum = int(out.split("_")[2])
+            outs_parquet[fnum].append(bnum)
+
+        pouts_parquet = [f"{fnum}-{list(bnum)[-1]}" for fnum, bnum in outs_parquet.items()]
+        print(f"Out parquets: {pouts_parquet}")
 
     if not Path(f"{xrddir}/{sample}/pickles").exists():
         print_red(f"No pickles directory for {sample}!")
@@ -137,16 +154,30 @@ for sample in samples:
         print(f"Out pickles: {outs_pickles}")
 
     for i in range(jdl_dict[sample]):
-        if i not in outs_pickles or (args.processor != "trigger" and i not in outs_parquet):
+        check_pickles = i in outs_pickles
+        check_parquet = True
+        if args.processor != "trigger":
+            if i not in outs_parquet:
+                check_parquet = False
+            else:
+                missing_batches = [
+                    j for j in range(expected_parquets[i]) if j not in outs_parquet[i]
+                ]
+                check_parquet = len(missing_batches) == 0
+
+        if not check_pickles or not check_parquet:
             if f"{args.year}_{sample}_{i}" in running_jobs:
                 print(f"Job #{i} for sample {sample} is running.")
                 continue
 
-            if i not in outs_pickles:
+            if not check_pickles:
                 print_red(f"Missing output pickle #{i} for sample {sample}")
 
-            if args.processor != "trigger" and i not in outs_parquet:
-                print_red(f"Missing output parquet #{i} for sample {sample}")
+            if not check_parquet:
+                if i not in outs_parquet:
+                    print_red(f"Missing all output parquets for job #{i} for sample {sample}")
+                else:
+                    print_red(f"Missing batches {missing_batches} for job #{i} for sample {sample}")
 
             jdl_file = f"condor/{args.processor}/{args.tag}/{args.year}_{sample}_{i}.jdl"
             err_file = f"condor/{args.processor}/{args.tag}/logs/{args.year}_{sample}_{i}.err"
