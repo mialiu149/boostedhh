@@ -215,6 +215,7 @@ def submit(
                     "year": args.year,
                     "starti": j * args.files_per_job,
                     "endi": (j + 1) * args.files_per_job,
+                    "batch_size": args.batch_size,
                     "sample": sample,
                     "subsample": subsample,
                     "processor": args.processor,
