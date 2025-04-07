@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 
 from boostedhh import utils
-from boostedhh.submit_utils import print_red
+from boostedhh.submit_utils import print_red, replace_batch_size
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument(
@@ -33,8 +33,10 @@ parser.add_argument(
 )
 parser.add_argument("--tag", default="", help="tag for jobs", type=str)
 parser.add_argument("--year", help="year", type=str, required=True)
+parser.add_argument("--change-batch-size", help="Change batch size for failed jobs - primarily in case the jobs are failing because of memory issues", type=int, default=None)
 parser.add_argument("--user", default="rkansal", help="user", type=str)
 utils.add_bool_arg(parser, "submit-missing", default=False, help="submit missing files")
+utils.add_bool_arg(parser, "print-shell", default=False, help="print .sh files as well")
 utils.add_bool_arg(
     parser,
     "check-running",
@@ -127,7 +129,7 @@ for sample in samples:
             with Path(f"{xrddir}/{sample}/jobchecks/{f}").open() as file:
                 bnum = file.readlines()
 
-            fnum = int(f.split("_")[2])
+            fnum = int(f.split("_")[2].split(".")[0])  # remove .txt
             expected_parquets[fnum] = int(bnum[0])
 
         outs_parquet = {}
@@ -136,7 +138,7 @@ for sample in samples:
             if fnum not in outs_parquet:
                 outs_parquet[fnum] = []
 
-            bnum = int(out.split("_")[2])
+            bnum = int(out.split("_")[3].split(".")[0])  # remove .parquet
             outs_parquet[fnum].append(bnum)
 
         pouts_parquet = [f"{fnum}-{list(bnum)[-1]}" for fnum, bnum in outs_parquet.items()]
@@ -191,6 +193,19 @@ print(f"{len(missing_files)} files to re-run:")
 for f in missing_files:
     print(f)
 
+if args.print_shell:
+    print(f"\n{len(missing_files)} bash files:")
+    for f in missing_files:
+        print(f.replace(".jdl", ".sh"))
+
+if args.change_batch_size is not None:
+    print(f"\nChanging the batch size to {args.change_batch_size} in the following files:")
+
+    for f in missing_files:
+        shfile = Path(f.replace(".jdl", ".sh"))
+        print(shfile)
+        replace_batch_size(shfile, args.change_batch_size)
+    
 print("\nError files:")
 for f in err_files:
     print(f)

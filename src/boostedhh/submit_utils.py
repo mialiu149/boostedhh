@@ -245,3 +245,19 @@ def submit(
                 nsubmit = nsubmit + 1
 
     print(f"Total {nsubmit} jobs")
+
+
+def replace_batch_size(file_path: Path, new_batch_size: int):
+    """Replacing batch size in given file"""
+    import re
+    
+    # Read the file
+    with file_path.open('r') as file:
+        content = file.read()
+    
+    # Replace using regex
+    updated_content = re.sub(r'--batch-size \d+', f'--batch-size {new_batch_size}', content)
+    
+    # Write back to the file
+    with open(file_path, 'w') as file:
+        file.write(updated_content)
