@@ -23,6 +23,9 @@ done
     do
         ((--r)) || exit
         sleep 60
+        rm -rf $repo  # remove folder in case it was made but something later failed.
+        echo "Retrying git clone..."
+        echo -e "\n\n\n"
     done
 )
 cd $repo || exit

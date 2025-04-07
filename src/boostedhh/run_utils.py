@@ -299,7 +299,8 @@ def run(
         parquet_files = list(path.glob("*.parquet"))
 
         num_batches = int(np.ceil(len(parquet_files) / batch_size))
-        Path(f"num_batches_{filetag}_{num_batches}.txt").touch()
+        with Path(f"num_batches_{filetag}.txt").open("w") as f:
+            f.write(f"{num_batches}")
 
         # need to combine all the files from these processors before transferring to EOS
         # otherwise it will complain about too many small files
