@@ -160,6 +160,7 @@ Thumbs.db
 
 *.root
 *.parquet
+*.txt
 test.ipynb
 **/__pycache__
 **/.DS_Store
@@ -175,8 +176,6 @@ docker_stderror
 src/boostedhh/corrections/data/jecs
 **/*test.ipynb
 src/boostedhh/xsecs.json
-
-running_jobs.txt
 
 .bashrc
 .condor_config
