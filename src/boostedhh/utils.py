@@ -134,18 +134,55 @@ class Sample:
         else:
             return self.selector
 
+    def get_type(self):
+        if self.isData:
+            return data_key
+        elif self.isSignal:
+            return "signal"
+        else:
+            return "bg"
+
 
 @dataclass
-class Channel:
-    """Channel."""
+class HLT:
+    """HLT."""
 
-    key: str  # key in dictionaries etc.
-    label: str  # label for plotting
-    data_samples: list[str]  # datasets for this channel
-    triggers: list[str] | dict[str, list[str]]  # list of triggers or dict of triggers per year
-    isLepton: bool  # lepton channel or fully hadronic
-    lepton_dataset: str = None  # lepton dataset (if applicable)
-    lepton_triggers: str = None  # lepton triggers (if applicable)
+    name: str  # "HLT_" prefix will automatically be removed
+    dataset: str  # which dataset e.g. JetMET, Muon etc.
+    years: list[str] = None  # which years? defaults to union of `mc_years` and `data_years`
+    mc_years: list[str] = None  # which years for MC? defaults to input `years`
+    data_years: list[str] = None  # which years for data? defaults to input `years`
+
+    def __post_init__(self):
+        if self.years is None and (self.mc_years is None or self.data_years is None):
+            raise ValueError(
+                f"Invalid HLT {self.name}: either `years` or (`mc_years` and `data_years`) must be provided"
+            )
+
+        if self.years is None:
+            self.years = list(set(self.mc_years + self.data_years))
+
+        if self.mc_years is None:
+            self.mc_years = self.years
+
+        if self.data_years is None:
+            self.data_years = self.years
+
+        if self.name.startswith("HLT_"):
+            self.name = self.name[4:]
+
+    def check_year(self, year: str, data_only: bool = False, mc_only: bool = False) -> bool:
+        """Check if the HLT is valid for a given year, optionally for data or MC only"""
+        if data_only and mc_only:
+            raise ValueError("data_only and mc_only cannot both be True")
+
+        if data_only and year not in self.data_years:
+            return False
+
+        if mc_only and year not in self.mc_years:
+            return False
+
+        return year in self.years
 
 
 @contextlib.contextmanager
@@ -406,7 +443,8 @@ def load_sample(
             events = pd.read_parquet(parquet_path, filters=filters, columns=load_columns)
         except Exception:
             warnings.warn(
-                f"Can't read file with requested columns/filters for {load_sample}!", stacklevel=1
+                f"Can't read file with requested columns/filters for {load_sample}!",
+                stacklevel=1,
             )
             continue
 
@@ -497,7 +535,10 @@ def load_samples(
                 continue
 
             sample_path = data_dir / sample
-            parquet_path, pickles_path = sample_path / "parquet", sample_path / "pickles"
+            parquet_path, pickles_path = (
+                sample_path / "parquet",
+                sample_path / "pickles",
+            )
 
             # no parquet directory?
             if not parquet_path.exists():
@@ -510,7 +551,8 @@ def load_samples(
             except Exception:
                 events = pd.read_parquet(parquet_path, filters=filters, columns=load_columns)
                 warnings.warn(
-                    f"Can't read file with requested columns/filters for {sample}!", stacklevel=1
+                    f"Can't read file with requested columns/filters for {sample}!",
+                    stacklevel=1,
                 )
                 continue
 
@@ -623,7 +665,6 @@ def tau32FittedSF_4(events: pd.DataFrame):
 
 
 def makeHH(events: pd.DataFrame, key: str, mass: str):
-
     h1 = vector.array(
         {
             "pt": events[key]["bbFatJetPt"].to_numpy()[:, 0],
