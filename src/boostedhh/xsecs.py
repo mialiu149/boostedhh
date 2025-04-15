@@ -207,9 +207,11 @@ vbfhh_kfactor = vbfhh_sm / vbfhh_sm_prev  # 1.0856
 vbfhh = {
     # 0.000635 (0.001904 from xsecdb, 0.001904*BR_HBB*BR_HBB=0.00064)
     "VBFHHtoDECAY_CV-1_C2V-1_C3-1": vbfhh_sm,
+    "VBFHHtoDECAY_CV_1_C2V_1_C3_1": vbfhh_sm,
     # these numbers are from 13 TeV and re-scaled to 13.6 TeV
     # 0.0293112 * BR = 0.00989 (0.02936 from xsecdb)
     "VBFHHtoDECAY_CV-1_C2V-0_C3-1": 27.0e-3 * vbfhh_kfactor,
+    "VBFHHtoDECAY_CV_1_C2V_0_C3_1": 27.0e-3 * vbfhh_kfactor,
     # 0.0050035 * BR = 0.00168 (not in xsecdb)
     "VBFHHtoDECAY_CV-1_C2V-1_C3-0": 4.59e-3 * vbfhh_kfactor,
     # 0.0015446 * BR = 0.000521 (0.001588 from xsecdb)

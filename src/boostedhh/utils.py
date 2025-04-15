@@ -171,6 +171,11 @@ class HLT:
         if self.name.startswith("HLT_"):
             self.name = self.name[4:]
 
+        self.hlt_name = "HLT_" + self.name
+
+    def get_name(self, hlt_prefix: bool = True):
+        return self.hlt_name if hlt_prefix else self.name
+
     def check_year(self, year: str, data_only: bool = False, mc_only: bool = False) -> bool:
         """Check if the HLT is valid for a given year, optionally for data or MC only"""
         if data_only and mc_only:
