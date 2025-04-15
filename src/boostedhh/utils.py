@@ -17,6 +17,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from os import listdir
 from pathlib import Path
+from typing import OrderedDict
 
 import hist
 import numpy as np
@@ -29,6 +30,7 @@ from boostedhh.xsecs import xsecs
 from .hh_vars import (
     LUMI,
     data_key,
+    hbb_bg_keys,
     jec_shifts,
     jec_vars,
     jmsr_keys,
@@ -127,6 +129,8 @@ class Sample:
             elif isinstance(self.selector, dict):
                 for year in self.selector:
                     self.selector[year] = re.compile(self.selector[year])
+
+        self.isBackground = not self.isData and not self.isSignal
 
     def get_selector(self, year=None):
         if isinstance(self.selector, dict):
@@ -640,7 +644,7 @@ def getParticles(particle_list, particle_type):
 
 
 # check if string is an int
-def _is_int(s: str) -> bool:
+def is_int(s: str) -> bool:
     try:
         int(s)
         return True
@@ -652,7 +656,7 @@ def get_feat(events: pd.DataFrame, feat: str):
     if feat in events:
         return np.nan_to_num(events[feat].to_numpy().squeeze(), -1)
 
-    if _is_int(feat[-1]):
+    if is_int(feat[-1]):
         return np.nan_to_num(events[feat[:-1]].to_numpy()[:, int(feat[-1])].squeeze(), -1)
 
     return None
@@ -1195,3 +1199,46 @@ def concatenate_dicts(dicts_list: list[dict[str, np.ndarray]]):
         }
 
     return dicts_list[0]
+
+
+def combine_hbb_bgs(hists, systs: list[str] = ()):
+    """Combine the single Hbb backgrounds into one. Optionally combine systematics."""
+
+    hbb_hists = []
+    hbb_systs = OrderedDict(
+        [(f"Hbb_{syst}_{updown}", []) for syst in systs for updown in ["up", "down"]]
+    )
+    for key in hbb_bg_keys:
+        hbb_hists.append(hists[key, ...])
+        for syst in systs:
+            for updown in ["up", "down"]:
+                try:
+                    hbb_systs[f"Hbb_{syst}_{updown}"].append(hists[f"{key}_{syst}_{updown}", ...])
+                except KeyError:
+                    warnings.warn(
+                        f"Couldn't find {key}_{syst}_{updown} for sample {key}!", stacklevel=2
+                    )
+
+    hbb_hist = sum(hbb_hists)
+    for syst in systs:
+        for updown in ["up", "down"]:
+            hbb_systs[f"Hbb_{syst}_{updown}"] = sum(hbb_systs[f"Hbb_{syst}_{updown}"])
+
+    # have to recreate hist with "Hbb" sample included
+    h = Hist(
+        hist.axis.StrCategory(
+            list(hists.axes[0]) + ["Hbb"] + list(hbb_systs.keys()), name="Sample"
+        ),
+        *hists.axes[1:],
+        storage="double" if hists.storage_type == hist.storage.Double else "weight",
+    )
+
+    for i, sample in enumerate(hists.axes[0]):
+        h.view()[i] = hists[sample, ...].view()
+
+    nsamples = len(hists.axes[0])
+    h.view()[nsamples] = hbb_hist.view()
+    for i, (_syst, hbbhist) in enumerate(hbb_systs.items()):
+        h.view()[nsamples + 1 + i] = hbbhist.view()
+
+    return h
