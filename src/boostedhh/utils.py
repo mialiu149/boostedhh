@@ -806,7 +806,7 @@ def singleVarHist(
     for sample in samples:
         events = events_dict[sample]
         if sample == "data" and var.endswith(("_up", "_down")):
-            fill_var = "_".join(var.split("_")[:-2])
+            fill_var = "_".join(var.split("_")[:-2])  # remove _up/_down
         else:
             fill_var = var
 

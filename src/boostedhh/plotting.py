@@ -169,7 +169,9 @@ def _combine_hbb_bgs(hists, bg_keys):
     return h, bg_keys
 
 
-def _process_samples(sig_keys, bg_keys, bg_colours, sig_scale_dict, bg_order, syst, variation):
+def _process_samples(
+    sig_keys, bg_keys, bg_colours, sig_scale_dict, bg_order, syst, variation, sample_label_map
+):
     # set up samples, colours and labels
     bg_keys = [key for key in bg_order if key in bg_keys]
     bg_colours = [COLOURS[bg_colours[sample]] for sample in bg_keys]
@@ -301,7 +303,7 @@ def ratioHistPlot(
     plot_significance: bool = False,
     significance_dir: str = "right",
     plot_ratio: bool = True,
-    axrax: tuple = None,
+    axraxsax: tuple = None,
     leg_args: dict = None,
     cmslabel: str = None,
     cmsloc: int = 0,
@@ -353,17 +355,18 @@ def ratioHistPlot(
     if sig_colours is None:
         sig_colours = SIG_COLOURS
     if leg_args is None:
-        leg_args = {"ncol": 2 if log else 1, "fontsize": 24}
+        leg_args = {"fontsize": 24}
+    leg_args["ncol"] = leg_args.get("ncol", (2 if log else 1))
 
     # copy hists and bg_keys so input objects are not changed
     hists, bg_keys = deepcopy(hists), deepcopy(bg_keys)
     hists, bg_keys = _combine_hbb_bgs(hists, bg_keys)
+    data_label = sample_label_map.get(data_key, data_key)
 
     bg_keys, bg_colours, bg_labels, sig_scale_dict, sig_labels = _process_samples(
-        sig_keys, bg_keys, bg_colours, sig_scale_dict, bg_order, syst, variation
+        sig_keys, bg_keys, bg_colours, sig_scale_dict, bg_order, syst, variation, sample_label_map
     )
 
-    print([hists[sample, :] for sample in bg_keys])
     bg_tot = np.maximum(sum([hists[sample, :] for sample in bg_keys]).values(), 0.0)
 
     if syst is not None and variation is None:
@@ -390,18 +393,20 @@ def ratioHistPlot(
         hists, data_err, bg_tot, bg_err = _divide_bin_widths(hists, data_err, bg_tot, bg_err)
 
     # set up plots
-    if axrax is not None:
+    if axraxsax is not None:
         if plot_significance:
-            raise RuntimeError("Significance plots with input axes not implemented yet.")
+            ax, rax, sax = axraxsax
+        elif plot_ratio:
+            ax, rax = axraxsax
+        else:
+            ax = axraxsax
 
-        ax, rax = axrax
-        ax.sharex(rax)
     elif plot_significance:
         fig, (ax, rax, sax) = plt.subplots(
             3,
             1,
             figsize=(12, 18),
-            gridspec_kw={"height_ratios": [3, 1, 1], "hspace": 0},
+            gridspec_kw={"height_ratios": [3, 1, 1], "hspace": 0.1},
             sharex=True,
         )
     elif plot_ratio:
@@ -430,6 +435,7 @@ def ratioHistPlot(
             stack=True,
             label=bg_labels,
             color=bg_colours,
+            flow="none",
         )
 
     # signal samples
@@ -441,6 +447,7 @@ def ratioHistPlot(
             label=list(sig_labels.values()),
             color=sig_colours[: len(sig_keys)],
             linewidth=3,
+            flow="none",
         )
 
         # plot signal errors
@@ -457,6 +464,7 @@ def ratioHistPlot(
                     label=[f"{sig_label} {skey}" for sig_label in sig_labels.values()],
                     alpha=0.6,
                     color=sig_colours[: len(sig_keys)],
+                    flow="none",
                 )
         elif sig_err is not None:
             for sig_key, sig_scale in sig_scale_dict.items():
@@ -521,24 +529,22 @@ def ratioHistPlot(
             ax=ax,
             yerr=data_err,
             xerr=divide_bin_width,
-            label=data_key,
+            label=data_label,
             **DATA_STYLE,
+            flow="none",
         )
+
+    # legend ordering
+    legend_order = [data_label] + bg_order[::-1] + list(sig_labels.values()) + [BG_UNC_LABEL]
+    legend_order = [sample_label_map.get(k, k) for k in legend_order]
+
+    handles, labels = ax.get_legend_handles_labels()
+    ordered_handles = [handles[labels.index(label)] for label in legend_order if label in labels]
+    ordered_labels = [label for label in legend_order if label in labels]
+    ax.legend(ordered_handles, ordered_labels, **leg_args)
 
     if log:
         ax.set_yscale("log")
-        # two column legend
-        ax.legend(**leg_args)
-    else:
-        legend_order = [data_key] + bg_order[::-1] + list(sig_labels.values()) + [BG_UNC_LABEL]
-        legend_order = [sample_label_map.get(k, k) for k in legend_order]
-
-        handles, labels = ax.get_legend_handles_labels()
-        ordered_handles = [
-            handles[labels.index(label)] for label in legend_order if label in labels
-        ]
-        ordered_labels = [label for label in legend_order if label in labels]
-        ax.legend(ordered_handles, ordered_labels, **leg_args)
 
     y_lowlim = 0 if not log else 1e-5
     if ylim is not None:
@@ -566,6 +572,7 @@ def ratioHistPlot(
                 xerr=divide_bin_width,
                 ax=rax,
                 **DATA_STYLE,
+                flow="none",
             )
 
             if bg_err is not None and bg_err_type == "shaded":
@@ -614,12 +621,15 @@ def ratioHistPlot(
             histtype="step",
             label=[sample_label_map.get(sig_key, sig_key) for sig_key in sig_scale_dict],
             color=sig_colours[: len(sig_keys)],
+            flow="none",
         )
 
-        sax.legend(fontsize=12)
+        sax.legend(fontsize=15)
         sax.set_yscale("log")
         sax.set_ylim([1e-7, 10])
         sax.set_xlabel(hists.axes[1].label)
+        sax.set_ylabel(sax.get_ylabel(), fontsize=22)
+        rax.set_xlabel(None)
 
     if title is not None:
         ax.set_title(title, y=1.08)
@@ -639,7 +649,7 @@ def ratioHistPlot(
 
     add_cms_label(ax, year, label=cmslabel, loc=cmsloc)
 
-    if axrax is None:
+    if axraxsax is None:
         if len(name):
             plt.savefig(name, bbox_inches="tight")
 
