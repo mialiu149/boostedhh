@@ -21,8 +21,7 @@ from pandas import DataFrame
 
 from boostedhh import utils
 from boostedhh.hh_vars import LUMI, data_key, hbb_bg_keys
-from boostedhh.postprocessing import utils as putils
-from boostedhh.postprocessing.utils import CUT_MAX_VAL
+from boostedhh.utils import CUT_MAX_VAL
 
 plt.style.use(hep.style.CMS)
 hep.style.use("CMS")
@@ -160,7 +159,7 @@ def _combine_hbb_bgs(hists, bg_keys):
     if len(set(bg_keys) & set(hbb_bg_keys)) == 0:
         return hists, bg_keys
 
-    h = putils.combine_hbb_bgs(hists)
+    h = utils.combine_hbb_bgs(hists)
 
     bg_keys = [key for key in bg_keys if key not in hbb_bg_keys]
 
