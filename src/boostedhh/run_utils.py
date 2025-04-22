@@ -50,6 +50,7 @@ def get_fileset(
         if len(subsamples):
             for subs in subsamples:
                 if subs not in get_subsamples:
+                    print('Check the sample name is in the full list of available samples names:', set_subsamples)
                     raise ValueError(f"Subsample {subs} not found for sample {sample}!")
 
         # if so keep only that subset
