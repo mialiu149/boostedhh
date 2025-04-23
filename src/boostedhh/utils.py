@@ -13,6 +13,7 @@ import pickle
 import re
 import time
 import warnings
+from abc import ABC, abstractmethod
 from copy import deepcopy
 from dataclasses import dataclass, field
 from os import listdir
@@ -33,11 +34,9 @@ from .hh_vars import (
     hbb_bg_keys,
     jec_shifts,
     jec_vars,
-    jmsr_keys,
     jmsr_shifts,
     jmsr_vars,
     norm_preserving_weights,
-    syst_keys,
     years,
 )
 
@@ -70,6 +69,41 @@ PAD_VAL = -99999
 
 
 @dataclass
+class LoadedSample(ABC):
+    """Abstract base class for loaded samples.
+
+    This class defines the interface for accessing variables in a loaded sample.
+    Each analysis should implement its own version of this class with the get_var method.
+
+    Attributes:
+        sample: The sample object containing metadata about the sample
+        events: The events data as a pandas DataFrame
+    """
+
+    sample: Sample
+    events: pd.DataFrame = None
+
+    @abstractmethod
+    def get_var(self, feat: str) -> np.ndarray:
+        """Get a variable from the events.
+
+        Args:
+            feat: The name of the variable to get
+
+        Returns:
+            The variable as a numpy array
+        """
+
+    def apply_selection(self, selection: np.ndarray[bool]):
+        """Apply a selection to the events.
+
+        Args:
+            selection: A boolean array indicating which events to keep
+        """
+        self.events = self.events[selection]
+
+
+@dataclass
 class ShapeVar:
     """Class to store attributes of a variable to make a histogram of.
 
@@ -91,6 +125,7 @@ class ShapeVar:
     blind_window: list[float] = None
     significance_dir: str = "right"
     plot_args: dict = None
+    isVariation: bool = False
 
     def __post_init__(self):
         # create axis used for histogramming
@@ -101,6 +136,14 @@ class ShapeVar:
                 self.axis = hist.axis.Variable(self.bins, name=self.var, label=self.label)
         else:
             self.axis = None
+
+        self.isVariation = self.var.endswith(("_up", "_down"))
+
+    def var_no_variation(self):
+        if self.isVariation:
+            return self.var.replace(("_up", "_down"), "")
+        else:
+            return self.var
 
 
 @dataclass
@@ -121,6 +164,8 @@ class Sample:
     load_columns: list = None
     variations: list[str] = None
     weight_shifts: list[str] = None
+    apply_jmsr: bool = False
+    apply_jecs: bool = False
 
     def __post_init__(self):
         if self.selector is not None:
@@ -192,6 +237,40 @@ class HLT:
             return False
 
         return year in self.years
+
+
+@dataclass
+class Cutflow:
+    """Class for tracking cutflow information across samples.
+
+
+    Args:
+        samples: Dictionary mapping sample labels to Sample objects
+    """
+
+    samples: dict[str, Sample]
+    cutflow: pd.DataFrame = None
+
+    def __post_init__(self):
+        self.sample_labels = [s.label for s in self.samples]
+
+        if self.cutflow is None:
+            self.cutflow = pd.DataFrame(index=self.sample_labels)
+
+    def add_cut(self, events_dict: dict[str, LoadedSample], cut_key: str, weight_key: str):
+        """Add a cut to the cutflow.
+
+        Args:
+            events_dict: Dictionary mapping sample labels to LoadedSample objects
+            cut_key: Name of the cut to add
+            weight_key: Name of the weight variable to use
+        """
+        self.cutflow[cut_key] = [
+            np.sum(events_dict[skey].get_var(weight_key)) for skey in self.samples
+        ]
+
+    def concat(self, other: dict):
+        self.cutflow = pd.concat((self.cutflow, other), axis=1)
 
 
 @contextlib.contextmanager
@@ -380,20 +459,6 @@ def _normalize_weights(
             events[wkey] = events[wkey].to_numpy() / totals[f"np_{wkey}"]
 
 
-def _reorder_txbb(events: pd.DataFrame, txbb):
-    # print(f"Reordering by {txbb}")
-    """Reorder all the bbFatJet columns by given TXbb"""
-    if txbb not in events:
-        raise ValueError(
-            f"{txbb} not found in events! Need to include that in load columns, or set reorder_legacy_txbb to False."
-        )
-
-    bbord = np.argsort(events[txbb].to_numpy(), axis=1)[:, ::-1]
-    for key in np.unique(events.columns.get_level_values(0)):
-        if key.startswith("bbFatJet"):
-            events[key] = np.take_along_axis(events[key].to_numpy(), bbord, axis=1)
-
-
 def load_sample(
     sample: Sample,
     year: str,
@@ -500,8 +565,6 @@ def load_samples(
     columns: list = None,
     variations: bool = True,
     weight_shifts: dict[str, Syst] = None,
-    reorder_txbb: bool = False,  # temporary fix for sorting by given Txbb
-    txbb_str: str = "bbFatJetPNetTXbbLegacy",
     load_weight_noxsec: bool = True,
 ) -> dict[str, pd.DataFrame]:
     """
@@ -569,9 +632,6 @@ def load_samples(
             if not len(events):
                 warnings.warn(f"No events for {sample}!", stacklevel=1)
                 continue
-
-            if reorder_txbb:
-                _reorder_txbb(events, txbb_str)
 
             # normalize by total events
             pickles = get_pickles(pickles_path, year, sample)
@@ -775,10 +835,11 @@ def blindBins(h: Hist, blind_region: list, blind_sample: str | None = None, axis
 
 
 def singleVarHist(
-    events_dict: dict[str, pd.DataFrame],
+    events_dict: dict[str, LoadedSample],
     shape_var: ShapeVar,
     weight_key: str = "finalWeight",
     selection: dict | None = None,
+    samples: list[str] = None,
 ) -> Hist:
     """
     Makes and fills a histogram for variable `var` using data in the `events` dict.
@@ -788,12 +849,12 @@ def singleVarHist(
           {sample1: {var1: np.array, var2: np.array, ...}, sample2: ...}
         shape_var (ShapeVar): ShapeVar object specifying the variable, label, binning, and (optionally) a blinding window.
         weight_key (str, optional): which weight to use from events, if different from 'weight'
-        blind_region (list, optional): region to blind for data, in format [low_cut, high_cut].
-          Bins in this region will be set to 0 for data.
         selection (dict, optional): if performing a selection first, dict of boolean arrays for
           each sample
+        samples (list, optional): list of samples to include in the histogram
     """
-    samples = list(events_dict.keys())
+    if samples is None:
+        samples = list(events_dict.keys())
 
     h = Hist(
         hist.axis.StrCategory(samples, name="Sample"),
@@ -803,80 +864,24 @@ def singleVarHist(
 
     var = shape_var.var
 
-    for sample in samples:
-        events = events_dict[sample]
-        if sample == "data" and var.endswith(("_up", "_down")):
-            fill_var = "_".join(var.split("_")[:-2])  # remove _up/_down
+    for skey in samples:
+        sample = events_dict[skey]
+
+        if sample.sample.isData and shape_var.isVariation:
+            fill_var = shape_var.var_no_variation()  # remove _up/_down
         else:
             fill_var = var
 
-        fill_data = {var: get_feat(events, fill_var)}
-        weight = events[weight_key].to_numpy().squeeze()
+        fill_data = {var: sample.get_var(fill_var)}
+        weight = sample.get_var(weight_key)
 
         if selection is not None:
-            sel = selection[sample]
+            sel = selection[skey]
             fill_data[var] = fill_data[var][sel]
             weight = weight[sel]
-
-        # if sf is not None and year is not None and sample == "ttbar" and apply_tt_sf:
-        #     weight = weight   * tau32FittedSF_4(events) * ttbar_pTjjSF(year, events)
 
         if fill_data[var] is not None:
-            h.fill(Sample=sample, **fill_data, weight=weight)
-
-    if shape_var.blind_window is not None:
-        blindBins(h, shape_var.blind_window, data_key)
-
-    return h
-
-
-def singleVarHistSel(
-    events_dict: dict[str, pd.DataFrame],
-    shape_var: ShapeVar,
-    samples: list[str],
-    weight_key: str = "finalWeight",
-    selection: dict | None = None,
-) -> Hist:
-    """
-    Makes and fills a histogram for variable `var` using data in the `events` dict.
-
-    Args:
-        events (dict): a dict of events of format
-          {sample1: {var1: np.array, var2: np.array, ...}, sample2: ...}
-        shape_var (ShapeVar): ShapeVar object specifying the variable, label, binning, and (optionally) a blinding window.
-        weight_key (str, optional): which weight to use from events, if different from 'weight'
-        blind_region (list, optional): region to blind for data, in format [low_cut, high_cut].
-          Bins in this region will be set to 0 for data.
-        selection (dict, optional): if performing a selection first, dict of boolean arrays for
-          each sample
-    """
-
-    h = Hist(
-        hist.axis.StrCategory(samples, name="Sample"),
-        shape_var.axis,
-        storage="weight",
-    )
-
-    var = shape_var.var
-
-    for sample in samples:
-        events = events_dict[sample]
-        if sample == "data" and var.endswith(("_up", "_down")):
-            fill_var = "_".join(var.split("_")[:-2])
-        else:
-            fill_var = var
-
-        # TODO: add b1, b2 assignment if needed
-        fill_data = {var: get_feat(events, fill_var)}
-        weight = events[weight_key].to_numpy().squeeze()
-
-        if selection is not None:
-            sel = selection[sample]
-            fill_data[var] = fill_data[var][sel]
-            weight = weight[sel]
-
-        if len(fill_data[var]):
-            h.fill(Sample=sample, **fill_data, weight=weight)
+            h.fill(Sample=skey, **fill_data, weight=weight)
 
     if shape_var.blind_window is not None:
         blindBins(h, shape_var.blind_window, data_key)
@@ -930,10 +935,17 @@ def singleVarHistNoMask(
     return h
 
 
-def add_selection(name, sel, selection, cutflow, events, weight_key):
+def add_selection(
+    name: str,
+    sel: np.ndarray[bool],
+    selection,
+    cutflow: dict,
+    sample: LoadedSample,
+    weight_key: str,
+):
     """Adds selection to PackedSelection object and the cutflow"""
     selection.add(name, sel)
-    weight = get_feat(events, weight_key)
+    weight = sample.get_var(weight_key)
     if cutflow is not None:
         cutflow[name] = np.sum(weight[selection.all(*selection.names)])
 
@@ -960,10 +972,9 @@ def get_var_mapping(jshift):
 
 
 def _var_selection(
-    events: pd.DataFrame,
+    sample: LoadedSample,
     var: str,
     brange: list[float],
-    sample: str,
     jshift: str,
     MAX_VAL: float = CUT_MAX_VAL,
 ):
@@ -978,15 +989,15 @@ def _var_selection(
     for cutvar in cut_vars:
         if (
             jshift in jmsr_shifts
-            and sample in jmsr_keys
+            and sample.sample.apply_jmsr
             or jshift in jec_shifts
-            and sample in syst_keys
+            and sample.sample.apply_jecs
         ):
             var = check_get_jec_var(cutvar, jshift)
         else:
             var = cutvar
 
-        vals = get_feat(events, var)
+        vals = sample.get_var(var)
 
         if rmin == -MAX_VAL:
             sels.append(vals < rmax)
@@ -1006,9 +1017,9 @@ def _var_selection(
 
 def make_selection(
     var_cuts: dict[str, list[float]],
-    events_dict: dict[str, pd.DataFrame],
+    events_dict: dict[str, LoadedSample],
     weight_key: str = "finalWeight",
-    prev_cutflow: dict = None,
+    prev_cutflow: Cutflow = None,
     selection: dict[str, np.ndarray] = None,
     jshift: str = "",
     MAX_VAL: float = CUT_MAX_VAL,
@@ -1047,16 +1058,16 @@ def make_selection(
 
     cutflow = {}
 
-    for sample, events in events_dict.items():
-        if sample not in cutflow:
-            cutflow[sample] = {}
+    for skey, sample in events_dict.items():
+        if skey not in cutflow:
+            cutflow[skey] = {}
 
-        if sample in selection:
+        if skey in selection:
             new_selection = PackedSelection()
-            new_selection.add("Previous selection", selection[sample])
-            selection[sample] = new_selection
+            new_selection.add("Previous selection", selection[skey])
+            selection[skey] = new_selection
         else:
-            selection[sample] = PackedSelection()
+            selection[skey] = PackedSelection()
 
         for cutvar, branges in var_cuts.items():
             if isinstance(branges[0], list):
@@ -1071,31 +1082,47 @@ def make_selection(
                 selstrs = []
                 for i, brange in enumerate(branges):
                     cvar = cut_vars[i] if len(cut_vars) > 1 else cut_vars[0]
-                    sel, selstr = _var_selection(events, cvar, brange, sample, jshift, MAX_VAL)
+                    sel, selstr = _var_selection(
+                        sample,
+                        cvar,
+                        brange,
+                        jshift,
+                        MAX_VAL,
+                    )
                     sels.append(sel)
                     selstrs.append(selstr)
 
                 sel = np.sum(sels, axis=0).astype(bool)
                 selstr = " or ".join(selstrs)
             else:
-                sel, selstr = _var_selection(events, cutvar, branges, sample, jshift, MAX_VAL)
+                sel, selstr = _var_selection(
+                    sample,
+                    cutvar,
+                    branges,
+                    jshift,
+                    MAX_VAL,
+                )
 
             add_selection(
                 selstr,
                 sel,
-                selection[sample],
-                cutflow[sample],
-                events,
+                selection[skey],
+                cutflow[skey],
+                sample,
                 weight_key,
             )
 
-        selection[sample] = selection[sample].all(*selection[sample].names)
+        selection[skey] = selection[skey].all(*selection[skey].names)
 
     cutflow = pd.DataFrame.from_dict(list(cutflow.values()))
-    cutflow.index = list(events_dict.keys())
+    cutflow.index = [s.label for s in events_dict.values()]
 
     if prev_cutflow is not None:
-        cutflow = pd.concat((prev_cutflow, cutflow), axis=1)
+        cutflow = prev_cutflow.concat(cutflow)
+    else:
+        cutflow = Cutflow(
+            samples={skey: sample.sample for skey, sample in events_dict.items()}, cutflow=cutflow
+        )
 
     return selection, cutflow
 
