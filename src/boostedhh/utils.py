@@ -722,17 +722,6 @@ def get_feat(events: pd.DataFrame, feat: str):
     return None
 
 
-def tau32FittedSF_4(events: pd.DataFrame):
-    tau32 = {"ak8FatJetTau3OverTau20": get_feat(events, "ak8FatJetTau3OverTau20")}[
-        "ak8FatJetTau3OverTau20"
-    ]
-    return np.where(
-        tau32 < 0.5,
-        18.4912 - 235.086 * tau32 + 1098.94 * tau32**2 - 2163 * tau32**3 + 1530.59 * tau32**4,
-        1,
-    )
-
-
 def makeHH(events: pd.DataFrame, key: str, mass: str):
     h1 = vector.array(
         {
