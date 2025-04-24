@@ -133,6 +133,13 @@ def check_branch(
 def init_args(args):
     # check that branch exists
     check_branch(args.analysis, args.git_branch, args.git_user, args.allow_diff_local_repo)
+
+    if isinstance(args.year, list):
+        if len(args.year) == 1:
+            args.year = args.year[0]
+        else:
+            raise ValueError("Submitting multiple years without --yaml option is not supported yet")
+
     username = os.environ["USER"]
 
     if args.site == "lpc":
