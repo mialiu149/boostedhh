@@ -189,8 +189,8 @@ def submit(
 
     # submit jobs
     nsubmit = 0
-    for sample in fileset:
-        for subsample, tot_files in fileset[sample].items():
+    for sample, sfiles in fileset.items():
+        for subsample, tot_files in sfiles.items():
             if args.submit:
                 print("Submitting " + subsample)
 
@@ -239,7 +239,7 @@ def submit(
                     Path(f"{localcondor}.log").unlink()
 
                 if args.submit:
-                    os.system("condor_submit %s" % localcondor)
+                    os.system(f"condor_submit {localcondor}")
                 else:
                     print("To submit ", localcondor)
                 nsubmit = nsubmit + 1
