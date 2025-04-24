@@ -69,7 +69,7 @@ PAD_VAL = -99999
 
 
 @dataclass
-class LoadedSample(ABC):
+class LoadedSampleABC(ABC):
     """Abstract base class for loaded samples.
 
     This class defines the interface for accessing variables in a loaded sample.
@@ -92,6 +92,19 @@ class LoadedSample(ABC):
 
         Returns:
             The variable as a numpy array
+        """
+
+    @abstractmethod
+    def copy_from_selection(
+        self, selection: np.ndarray[bool], do_deepcopy: bool = False
+    ) -> LoadedSampleABC:
+        """Copy the events from a selection.
+
+        Args:
+            selection: boolean mask
+
+        Returns:
+            A new LoadedSampleABC object with the selected events
         """
 
     def apply_selection(self, selection: np.ndarray[bool]):
@@ -252,12 +265,15 @@ class Cutflow:
     cutflow: pd.DataFrame = None
 
     def __post_init__(self):
-        self.sample_labels = [s.label for s in self.samples]
+        if "LoadedSample" in str(type(next(iter(self.samples.values())))):
+            self.samples = {skey: s.sample for skey, s in self.samples.items()}
+
+        self.sample_labels = [s.label for s in self.samples.values()]
 
         if self.cutflow is None:
             self.cutflow = pd.DataFrame(index=self.sample_labels)
 
-    def add_cut(self, events_dict: dict[str, LoadedSample], cut_key: str, weight_key: str):
+    def add_cut(self, events_dict: dict[str, LoadedSampleABC], cut_key: str, weight_key: str):
         """Add a cut to the cutflow.
 
         Args:
@@ -271,6 +287,9 @@ class Cutflow:
 
     def concat(self, other: dict):
         self.cutflow = pd.concat((self.cutflow, other), axis=1)
+
+    def to_csv(self, path: Path):
+        self.cutflow.to_csv(path)
 
 
 @contextlib.contextmanager
@@ -824,7 +843,7 @@ def blindBins(h: Hist, blind_region: list, blind_sample: str | None = None, axis
 
 
 def singleVarHist(
-    events_dict: dict[str, LoadedSample],
+    events_dict: dict[str, LoadedSampleABC],
     shape_var: ShapeVar,
     weight_key: str = "finalWeight",
     selection: dict | None = None,
@@ -929,7 +948,7 @@ def add_selection(
     sel: np.ndarray[bool],
     selection,
     cutflow: dict,
-    sample: LoadedSample,
+    sample: LoadedSampleABC,
     weight_key: str,
 ):
     """Adds selection to PackedSelection object and the cutflow"""
@@ -961,7 +980,7 @@ def get_var_mapping(jshift):
 
 
 def _var_selection(
-    sample: LoadedSample,
+    sample: LoadedSampleABC,
     var: str,
     brange: list[float],
     jshift: str,
@@ -1006,7 +1025,7 @@ def _var_selection(
 
 def make_selection(
     var_cuts: dict[str, list[float]],
-    events_dict: dict[str, LoadedSample],
+    events_dict: dict[str, LoadedSampleABC],
     weight_key: str = "finalWeight",
     prev_cutflow: Cutflow = None,
     selection: dict[str, np.ndarray] = None,
@@ -1104,14 +1123,12 @@ def make_selection(
         selection[skey] = selection[skey].all(*selection[skey].names)
 
     cutflow = pd.DataFrame.from_dict(list(cutflow.values()))
-    cutflow.index = [s.label for s in events_dict.values()]
+    cutflow.index = [s.sample.label for s in events_dict.values()]
 
     if prev_cutflow is not None:
         cutflow = prev_cutflow.concat(cutflow)
     else:
-        cutflow = Cutflow(
-            samples={skey: sample.sample for skey, sample in events_dict.items()}, cutflow=cutflow
-        )
+        cutflow = Cutflow(samples=events_dict, cutflow=cutflow)
 
     return selection, cutflow
 
@@ -1256,5 +1273,36 @@ def combine_hbb_bgs(hists, systs: list[str] = ()):
     h.view()[nsamples] = hbb_hist.view()
     for i, (_syst, hbbhist) in enumerate(hbb_systs.items()):
         h.view()[nsamples + 1 + i] = hbbhist.view()
+
+    return h
+
+
+def get_fill_data(events: LoadedSampleABC, shape_vars: list[ShapeVar], jshift: str = ""):
+    return {
+        shape_var.var: events.get_var(
+            shape_var.var if jshift == "" else check_get_jec_var(shape_var.var, jshift),
+        )
+        for shape_var in shape_vars
+    }
+
+
+def get_qcdvar_hists(
+    sample: LoadedSampleABC, shape_vars: list[ShapeVar], fill_data: dict, wshift: str
+):
+    """Get histograms for QCD scale and PDF variations"""
+    wkey = f"{wshift}_weights"
+    cols = list(sample.events[wkey].columns)
+    h = Hist(
+        hist.axis.StrCategory([str(i) for i in cols], name="Sample"),
+        *[shape_var.axis for shape_var in shape_vars],
+        storage="weight",
+    )
+
+    for i in cols:
+        h.fill(
+            Sample=str(i),
+            **fill_data,
+            weight=sample.events[wkey][i].to_numpy().squeeze(),
+        )
 
     return h
