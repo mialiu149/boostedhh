@@ -509,10 +509,17 @@ def load_sample(
     else:
         sample_path = paths["bg"]
 
-    sample_path = sample_path / year
+    if not isinstance(sample_path, list):
+        sample_path = [sample_path]
 
-    full_samples_list = listdir(sample_path)  # get all directories in data_dir
-    load_samples = [str(s) for s in full_samples_list if sample.get_selector(year).match(s)]
+    # find the directory that contains the sample
+    for sp in sample_path:
+        spy = sp / year
+        full_samples_list = listdir(spy)  # get all directories in data_dir
+        load_samples = [str(s) for s in full_samples_list if sample.get_selector(year).match(s)]
+        if len(load_samples):
+            sample_path = spy
+            break
 
     logger.info(f"Loading {load_samples}")
 
