@@ -420,16 +420,6 @@ def format_columns(columns: list):
     return ret_columns
 
 
-# add OR filter to each inner filter list
-def add_or_filter(filters, cut: list[tuple]):
-    if isinstance(filters[0], list):
-        # recursively handle nested filter lists
-        return [add_or_filter(f, cut) for f in filters]
-    else:
-        # add OR filter at leaf level
-        return filters + cut
-
-
 def _normalize_weights(
     events: pd.DataFrame,
     year: str,
