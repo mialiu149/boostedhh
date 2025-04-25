@@ -846,14 +846,14 @@ def multiROCCurveGreyOld(
 
 
 th_colours = [
-    # "#36213E",
+    "#36213E",
     # "#9381FF",
     "#1f78b4",
-    # "#a6cee3",
+    "#a6cee3",
     # "#32965D",
     "#7CB518",
     "#EDB458",
-    # "#ff7f00",
+    "#ff7f00",
     "#a70000",
 ]
 
@@ -1026,6 +1026,7 @@ def multiROCCurve(
     plot_dir="",
     name="",
     prelim=True,
+    lumi=None,
     show=False,
 ):
     if ylim is None:
@@ -1033,7 +1034,11 @@ def multiROCCurve(
     if xlim is None:
         xlim = [0, 1]
     if thresholds is None:
-        thresholds = [[0.9, 0.98, 0.995, 0.9965, 0.998], [0.99, 0.997, 0.998, 0.999, 0.9997]]
+        thresholds = [
+            0.9,
+            0.99,
+            0.998,
+        ]  # [0.9, 0.98, 0.995, 0.9965, 0.998] # [[0.99, 0.997, 0.998, 0.999, 0.9997]]
 
     plt.rcParams.update({"font.size": 32})
 
@@ -1053,13 +1058,12 @@ def multiROCCurve(
                 color=COLOURS[ROC_COLOURS[i * len(roc_sigs) + j]],
                 linestyle=LINESTYLES[i * len(roc_sigs) + j],
             )
-
             pths = {th: [[], []] for th in pthresholds}
             for th in pthresholds:
                 idx = _find_nearest(roc["thresholds"], th)
                 pths[th][0].append(roc["tpr"][idx])
                 pths[th][1].append(roc["fpr"][idx])
-                print(roc["tpr"][idx])
+                # print(roc["tpr"][idx])
 
             for k, th in enumerate(pthresholds):
                 ax.scatter(
@@ -1091,7 +1095,15 @@ def multiROCCurve(
                     alpha=0.5,
                 )
 
-    add_cms_label(ax, year, data=False, label="Preliminary" if prelim else None, loc=1, lumi=False)
+                hep.cms.label(
+                    ax=ax,
+                    label="Preliminary" if prelim else "",
+                    data=True,
+                    year=year,
+                    com="13.6",
+                    fontsize=20,
+                    lumi=lumi,
+                )
 
     if log:
         plt.yscale("log")
@@ -1100,16 +1112,16 @@ def multiROCCurve(
     ax.set_ylabel("Background efficiency")
     ax.set_xlim(*xlim)
     ax.set_ylim(*ylim)
-    ax.legend(loc="lower right", fontsize=24)
+    ax.legend(loc="lower right", fontsize=21)
 
     if title:
         ax.text(
-            0.05,
-            0.83,
+            0.02,
+            0.93,
             title,
             transform=ax.transAxes,
-            fontsize=24,
-            fontproperties="Tex Gyre Heros:bold",
+            fontsize=20,
+            # fontproperties="Tex Gyre Heros:bold",
         )
 
     if kin_label:
@@ -1124,6 +1136,7 @@ def multiROCCurve(
 
     if len(name):
         plt.savefig(f"{plot_dir}/{name}.pdf", bbox_inches="tight")
+        plt.savefig(f"{plot_dir}/{name}.png", bbox_inches="tight")
 
     if show:
         plt.show()
