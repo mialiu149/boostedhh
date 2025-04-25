@@ -133,6 +133,13 @@ def check_branch(
 def init_args(args):
     # check that branch exists
     check_branch(args.analysis, args.git_branch, args.git_user, args.allow_diff_local_repo)
+
+    if isinstance(args.year, list):
+        if len(args.year) == 1:
+            args.year = args.year[0]
+        else:
+            raise ValueError("Submitting multiple years without --yaml option is not supported yet")
+
     username = os.environ["USER"]
 
     if args.site == "lpc":
@@ -189,8 +196,8 @@ def submit(
 
     # submit jobs
     nsubmit = 0
-    for sample in fileset:
-        for subsample, tot_files in fileset[sample].items():
+    for sample, sfiles in fileset.items():
+        for subsample, tot_files in sfiles.items():
             if args.submit:
                 print("Submitting " + subsample)
 
@@ -239,7 +246,7 @@ def submit(
                     Path(f"{localcondor}.log").unlink()
 
                 if args.submit:
-                    os.system("condor_submit %s" % localcondor)
+                    os.system(f"condor_submit {localcondor}")
                 else:
                     print("To submit ", localcondor)
                 nsubmit = nsubmit + 1
@@ -250,14 +257,14 @@ def submit(
 def replace_batch_size(file_path: Path, new_batch_size: int):
     """Replacing batch size in given file"""
     import re
-    
+
     # Read the file
-    with file_path.open('r') as file:
+    with file_path.open("r") as file:
         content = file.read()
-    
+
     # Replace using regex
-    updated_content = re.sub(r'--batch-size \d+', f'--batch-size {new_batch_size}', content)
-    
+    updated_content = re.sub(r"--batch-size \d+", f"--batch-size {new_batch_size}", content)
+
     # Write back to the file
-    with open(file_path, 'w') as file:
+    with file_path.open("w") as file:
         file.write(updated_content)

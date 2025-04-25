@@ -109,7 +109,8 @@ def parse_common_hh_args(parser):
         "--year",
         help="year",
         type=str,
-        default="2022",
+        nargs="+",
+        required=True,
         choices=["2018", "2022", "2022EE", "2023", "2023BPix"],
     )
 
