@@ -420,6 +420,16 @@ def format_columns(columns: list):
     return ret_columns
 
 
+# add OR filter to each inner filter list
+def add_or_filter(filters, cut: list[tuple]):
+    if isinstance(filters[0], list):
+        # recursively handle nested filter lists
+        return [add_or_filter(f, cut) for f in filters]
+    else:
+        # add OR filter at leaf level
+        return filters + cut
+
+
 def _normalize_weights(
     events: pd.DataFrame,
     year: str,
@@ -514,9 +524,11 @@ def load_sample(
 
     # find the directory that contains the sample
     for sp in sample_path:
-        spy = sp / year
-        full_samples_list = listdir(spy)  # get all directories in data_dir
-        load_samples = [str(s) for s in full_samples_list if sample.get_selector(year).match(s)]
+        spy = Path(sp) / year
+        full_samples_list = list(spy.iterdir())  # get all directories in data_dir
+        load_samples = [
+            s.name for s in full_samples_list if sample.get_selector(year).match(s.name)
+        ]
         if len(load_samples):
             sample_path = spy
             break
