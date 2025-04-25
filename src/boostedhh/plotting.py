@@ -550,7 +550,7 @@ def ratioHistPlot(
     if ylim is not None:
         ax.set_ylim([y_lowlim, ylim])
     else:
-        ax.set_ylim(y_lowlim)
+        ax.set_ylim(y_lowlim, ax.get_ylim()[1] * 2)
 
     ax.margins(x=0)
 
